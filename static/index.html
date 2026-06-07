@@ -397,6 +397,148 @@
     .pd-divider { height: 1px; background: var(--outline); margin: 4px 8px; }
 
     /* ═══════════════════════════════════════════════════════════════
+       NOTIFICATION BELL + PANEL
+       ═══════════════════════════════════════════════════════════════ */
+    .notif-wrap { position: relative; }
+
+    .notif-badge {
+        position: absolute;
+        top: 3px; right: 3px;
+        min-width: 16px; height: 16px;
+        background: var(--error);
+        color: #fff;
+        border-radius: 8px;
+        font-size: .625rem; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0 3px;
+        border: 2px solid var(--surface);
+        pointer-events: none;
+        transition: opacity .2s var(--ease), transform .2s var(--ease);
+        transform-origin: top right;
+    }
+
+    .notif-badge.hidden { opacity: 0; transform: scale(0); }
+
+    .notif-panel {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: -48px;
+        width: 340px;
+        max-height: 460px;
+        background: var(--surface);
+        border: 1px solid var(--outline);
+        border-radius: var(--r-xl);
+        box-shadow: var(--sh-lg);
+        z-index: 300;
+        opacity: 0;
+        transform: translateY(-8px) scale(.97);
+        pointer-events: none;
+        transition: opacity .18s var(--ease), transform .18s var(--ease);
+        transform-origin: top right;
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+
+    .notif-panel.open {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+    }
+
+    .notif-panel-hdr {
+        padding: 14px 16px 12px;
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid var(--outline);
+        background: var(--surface-variant);
+        flex-shrink: 0;
+    }
+
+    .notif-panel-title {
+        font-family: 'Google Sans', sans-serif;
+        font-size: .9375rem; font-weight: 700;
+        color: var(--on-surface);
+        display: flex; align-items: center; gap: 6px;
+    }
+
+    .notif-panel-acts { display: flex; gap: 4px; }
+
+    .np-act {
+        font-size: .75rem; font-weight: 600;
+        color: var(--primary);
+        padding: 4px 8px;
+        border-radius: var(--r-sm);
+        transition: background .15s;
+        background: transparent; border: none; cursor: pointer;
+    }
+
+    .np-act:hover { background: var(--primary-container); }
+
+    .notif-list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 6px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--outline) transparent;
+    }
+
+    .notif-item {
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 10px 10px 10px 14px;
+        border-radius: var(--r-md);
+        cursor: pointer;
+        transition: background .15s;
+        position: relative;
+    }
+
+    .notif-item:hover { background: var(--surface-variant); }
+
+    .notif-item.unread::before {
+        content: '';
+        position: absolute;
+        left: 3px; top: 50%;
+        transform: translateY(-50%);
+        width: 3px; height: 55%; min-height: 22px;
+        background: var(--primary);
+        border-radius: 2px;
+    }
+
+    .notif-ico {
+        width: 36px; height: 36px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .notif-ico .material-icons-round { font-size: 18px; }
+
+    .ni-overdue  { background: var(--cc-bg);  color: var(--cc);  }
+    .ni-today    { background: var(--cc-bg);  color: var(--cc);  }
+    .ni-tomorrow { background: var(--cpr-bg); color: var(--cpr); }
+    .ni-soon     { background: var(--ca-bg);  color: var(--ca);  }
+
+    .notif-body { flex: 1; min-width: 0; }
+
+    .notif-title {
+        font-size: .8125rem; font-weight: 600;
+        color: var(--on-surface); line-height: 1.4;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .notif-sub {
+        font-size: .75rem; color: var(--on-surface-muted);
+        margin-top: 3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .notif-empty {
+        text-align: center; padding: 36px 20px;
+        color: var(--on-surface-muted);
+    }
+
+    .notif-empty .material-icons-round { font-size: 44px; opacity: .4; display: block; margin-bottom: 10px; }
+    .notif-empty p { font-size: .875rem; line-height: 1.6; }
+
+    /* ═══════════════════════════════════════════════════════════════
        LEFT NAV RAIL
        ═══════════════════════════════════════════════════════════════ */
     .nav-rail {
@@ -1265,6 +1407,28 @@
             <span class="sync-dot" id="sync-dot"></span>
         </button>
 
+        <!-- Notifications Bell -->
+        <div class="notif-wrap" id="notif-wrap">
+            <button class="icon-btn" id="btn-notif" onclick="toggleNotif()" aria-label="Notifications" title="Notifications">
+                <span class="material-icons-round">notifications</span>
+                <span class="notif-badge hidden" id="notif-badge">0</span>
+            </button>
+
+            <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notification panel">
+                <div class="notif-panel-hdr">
+                    <span class="notif-panel-title">
+                        <span class="material-icons-round" style="font-size:18px;color:var(--primary)">notifications_active</span>
+                        Notifications
+                    </span>
+                    <div class="notif-panel-acts">
+                        <button class="np-act" onclick="markAllNotifsRead()">Mark all read</button>
+                        <button class="np-act" onclick="clearNotifRead()">Clear</button>
+                    </div>
+                </div>
+                <div class="notif-list" id="notif-list"></div>
+            </div>
+        </div>
+
         <!-- Avatar + Profile Dropdown -->
         <div class="profile-wrap" id="profile-wrap">
             <div class="avatar" id="avatar-btn" onclick="toggleProfile()" aria-label="Open profile" title="Profile" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleProfile()">
@@ -1716,6 +1880,7 @@ function renderAll() {
     renderTasks();
     renderSubjects();
     renderDone();
+    updateNotifBadge();   // refresh bell count after every data update
 }
 
 /* ════════════════════════════════════════════
@@ -2295,6 +2460,123 @@ document.addEventListener('keydown', e => {
    AUTO-REFRESH + INIT
 ════════════════════════════════════════════ */
 setInterval(refreshAll, REFRESH_MS);
+
+/* ════════════════════════════════════════════
+   NOTIFICATIONS
+════════════════════════════════════════════ */
+const NOTIF_ICON = { overdue: 'warning', today: 'alarm', tomorrow: 'alarm_on', soon: 'schedule' };
+
+function getNotifications() {
+    if (!S.tasks || !S.tasks.length) return [];
+    const notifs = [];
+    S.tasks.forEach(task => {
+        if (task.is_completed || !task.due_date) return;
+        const d = daysDiff(task.due_date);
+        if (d === null) return;
+        if      (d < 0)  notifs.push({ id:'ov-'+task.id, type:'overdue',  label:`Overdue by ${Math.abs(d)} day${Math.abs(d)>1?'s':''}`, task });
+        else if (d === 0) notifs.push({ id:'td-'+task.id, type:'today',    label:'Due Today!', task });
+        else if (d === 1) notifs.push({ id:'tm-'+task.id, type:'tomorrow', label:'Due Tomorrow', task });
+        else if (d <= 3)  notifs.push({ id:'sn-'+task.id, type:'soon',     label:`Due in ${d} days`, task });
+    });
+    const ord = { overdue:0, today:1, tomorrow:2, soon:3 };
+    notifs.sort((a,b) => ord[a.type] - ord[b.type]);
+    return notifs;
+}
+
+function getReadSet() {
+    return new Set(JSON.parse(localStorage.getItem('cf-notif-read') || '[]'));
+}
+
+function saveReadSet(s) {
+    localStorage.setItem('cf-notif-read', JSON.stringify([...s]));
+}
+
+function updateNotifBadge() {
+    const badge = id('notif-badge');
+    if (!badge) return;
+    const unread = getNotifications().filter(n => !getReadSet().has(n.id)).length;
+    badge.textContent = unread > 9 ? '9+' : String(unread);
+    badge.classList.toggle('hidden', unread === 0);
+}
+
+function toggleNotif() {
+    id('notif-panel').classList.contains('open') ? closeNotif() : openNotif();
+}
+
+function openNotif() {
+    renderNotifPanel();
+    id('notif-panel').classList.add('open');
+    setTimeout(() => document.addEventListener('click', outsideNotifClick), 0);
+}
+
+function closeNotif() {
+    // Mark all visible as read when panel closes
+    const s = getReadSet();
+    getNotifications().forEach(n => s.add(n.id));
+    saveReadSet(s);
+    id('notif-panel').classList.remove('open');
+    document.removeEventListener('click', outsideNotifClick);
+    updateNotifBadge();
+}
+
+function outsideNotifClick(e) {
+    if (!id('notif-wrap').contains(e.target)) closeNotif();
+}
+
+function renderNotifPanel() {
+    const notifs = getNotifications();
+    const read   = getReadSet();
+    const el     = id('notif-list');
+
+    if (!notifs.length) {
+        el.innerHTML = `<div class="notif-empty">
+            <span class="material-icons-round">notifications_none</span>
+            <p>You're all caught up!<br>No upcoming deadlines.</p>
+        </div>`;
+        return;
+    }
+
+    el.innerHTML = notifs.map(n => {
+        const unread = !read.has(n.id);
+        const ico    = NOTIF_ICON[n.type] || 'notifications';
+        const sub    = n.task.subject ? shortSub(n.task.subject) : '';
+        return `<div class="notif-item ${unread ? 'unread' : ''}" onclick="notifClick('${n.task.id}','${n.id}')">
+            <div class="notif-ico ni-${n.type}"><span class="material-icons-round">${ico}</span></div>
+            <div class="notif-body">
+                <div class="notif-title">${esc(n.task.title)}</div>
+                <div class="notif-sub">${esc(n.label)} · ${esc(sub)}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function notifClick(taskId, notifId) {
+    const s = getReadSet(); s.add(notifId); saveReadSet(s);
+    closeNotif();
+    // Navigate to dashboard and highlight the task card
+    show('dashboard');
+    setTimeout(() => {
+        const card = id('card-' + taskId);
+        if (!card) return;
+        card.scrollIntoView({ behavior:'smooth', block:'center' });
+        card.style.transition = 'box-shadow .3s';
+        card.style.boxShadow  = '0 0 0 3px var(--primary)';
+        setTimeout(() => card.style.boxShadow = '', 1800);
+    }, 320);
+}
+
+function markAllNotifsRead() {
+    const s = new Set(getNotifications().map(n => n.id));
+    saveReadSet(s);
+    renderNotifPanel();
+    updateNotifBadge();
+}
+
+function clearNotifRead() {
+    saveReadSet(new Set());
+    renderNotifPanel();
+    updateNotifBadge();
+}
 
 /* ════════════════════════════════════════════
    PROFILE DROPDOWN
