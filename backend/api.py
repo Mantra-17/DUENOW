@@ -42,7 +42,7 @@ import os, sys
 # Allow importing sibling backend modules when run from project root
 sys.path.insert(0, os.path.dirname(__file__))
 
-from flask import Flask, jsonify, request, Response, send_from_directory
+from flask import Flask, jsonify, request, Response, send_from_directory, make_response
 from flask_cors import CORS
 from psycopg2.extras import RealDictCursor
 
@@ -133,7 +133,8 @@ def check_api_key() -> Response | None:
     # Always allow static files and health check without auth
     if request.path in OPEN_PATHS or request.path.startswith('/static') \
             or request.path.startswith('/css') or request.path.startswith('/js') \
-            or request.path.startswith('/fonts') or request.path in ('/favicon.ico',):
+            or request.path.startswith('/fonts') or request.path.startswith('/icons') \
+            or request.path in ('/favicon.ico', '/manifest.json', '/sw.js'):
         return None
 
     if not API_KEY:
@@ -807,6 +808,23 @@ def reanalyze_all_tasks() -> tuple[Response, int]:
 def home() -> Response:
     """Serve the frontend UI."""
     return send_from_directory(FRONTEND_DIR, 'index.html')
+
+
+@app.route("/manifest.json", methods=["GET"])
+def manifest() -> Response:
+    """Serve the web app manifest."""
+    return send_from_directory(FRONTEND_DIR, 'manifest.json')
+
+
+@app.route("/sw.js", methods=["GET"])
+def service_worker() -> Response:
+    """Serve the Service Worker with appropriate headers."""
+    response = make_response(send_from_directory(FRONTEND_DIR, 'sw.js'))
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    # Ensure service worker is not cached aggressively
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
 
 
 # ─────────────────────────────────────────────────────────────────────────────

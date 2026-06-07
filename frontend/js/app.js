@@ -230,11 +230,102 @@ document.addEventListener('keydown', e => {
 
 /* ════════════════════════════════════════════
    AUTO-REFRESH + INIT
-════════════════════════════════════════════ */
+   ════════════════════════════════════════════ */
 setInterval(refreshAll, REFRESH_MS);
+
+/* ════════════════════════════════════════════
+   PWA INSTALL PROMPT
+   ════════════════════════════════════════════ */
+let deferredPrompt = null;
+
+function initInstallPrompt() {
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        // Stash the event so it can be triggered later.
+        deferredPrompt = e;
+        
+        // Check if user dismissed it in the last 7 days
+        const dismissedTime = localStorage.getItem('cf-pwa-dismissed');
+        if (dismissedTime) {
+            const daysSinceDismissal = (Date.now() - parseInt(dismissedTime, 10)) / (1000 * 60 * 60 * 24);
+            if (daysSinceDismissal < 7) {
+                return; // Don't show within 7 days
+            }
+        }
+        
+        // Show the install banner after 30 seconds
+        setTimeout(showInstallBanner, 30000);
+    });
+
+    window.addEventListener('appinstalled', (evt) => {
+        deferredPrompt = null;
+        toast('ClassFlow installed successfully! 🎉');
+        hideInstallBanner();
+    });
+}
+
+window.showInstallBanner = function() {
+    if (!deferredPrompt) return;
+    
+    // Create banner element if it doesn't exist
+    let banner = id('pwa-install-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'pwa-install-banner';
+        banner.className = 'pwa-banner';
+        banner.innerHTML = `
+            <div class="pwa-banner-icon">
+                <span class="material-icons-round">rocket_launch</span>
+            </div>
+            <div class="pwa-banner-content">
+                <div class="pwa-banner-title">Install ClassFlow</div>
+                <div class="pwa-banner-desc">Get the full app experience with standalone window and offline access.</div>
+            </div>
+            <div class="pwa-banner-actions">
+                <button class="btn btn-ghost" onclick="dismissInstallBanner()">Not now</button>
+                <button class="btn btn-fill" onclick="triggerPwaInstall()">Install</button>
+            </div>
+        `;
+        document.body.appendChild(banner);
+    }
+    
+    // Force reflow
+    banner.offsetWidth;
+    banner.classList.add('show');
+};
+
+window.hideInstallBanner = function() {
+    const banner = id('pwa-install-banner');
+    if (banner) {
+        banner.classList.remove('show');
+    }
+};
+
+window.dismissInstallBanner = function() {
+    window.hideInstallBanner();
+    localStorage.setItem('cf-pwa-dismissed', Date.now().toString());
+    deferredPrompt = null;
+};
+
+window.triggerPwaInstall = async function() {
+    if (!deferredPrompt) return;
+    window.hideInstallBanner();
+    
+    // Show the install prompt
+    deferredPrompt.prompt();
+    
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    
+    // We've used the prompt, and can't use it again
+    deferredPrompt = null;
+};
 
 (async function init() {
     initTheme();
     initAvatar();
+    initInstallPrompt();
     await refreshAll();
 })();

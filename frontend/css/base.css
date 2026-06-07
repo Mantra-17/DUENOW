@@ -178,3 +178,104 @@ a { text-decoration: none; color: inherit; }
 }
 
 .avatar:hover { transform: scale(1.08); opacity: .9; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PWA INSTALL BANNER
+   ═══════════════════════════════════════════════════════════════ */
+.pwa-banner {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translate(-50%, 120px);
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    box-shadow: var(--sh-lg);
+    border-radius: var(--r-lg);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 9999;
+    max-width: 500px;
+    width: calc(100% - 32px);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pwa-banner.show {
+    transform: translate(-50%, 0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.pwa-banner-icon {
+    width: 42px;
+    height: 42px;
+    background: var(--primary);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: white;
+}
+
+.pwa-banner-icon .material-icons-round {
+    font-size: 24px;
+}
+
+.pwa-banner-content {
+    flex: 1;
+}
+
+.pwa-banner-title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--on-surface);
+}
+
+.pwa-banner-desc {
+    font-size: 0.8125rem;
+    color: var(--on-surface-muted);
+    margin-top: 2px;
+}
+
+.pwa-banner-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Make action buttons look premium */
+.pwa-banner-actions .btn {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 16px;
+    transition: all 0.2s;
+}
+
+.pwa-banner-actions .btn-fill {
+    background: var(--primary);
+    color: var(--on-primary);
+}
+
+.pwa-banner-actions .btn-fill:hover {
+    background: var(--primary-hover);
+    box-shadow: var(--sh-sm);
+}
+
+.pwa-banner-actions .btn-ghost {
+    color: var(--on-surface-var);
+}
+
+.pwa-banner-actions .btn-ghost:hover {
+    background: var(--surface-hover);
+}
+
+/* Mobile responsive adjust for bottom nav overlap */
+@media (max-width: 768px) {
+    .pwa-banner {
+        bottom: 80px; /* Leave space for mobile navigation rail */
+    }
+}

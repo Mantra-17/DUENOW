@@ -25,6 +25,19 @@
     <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="css/utilities.css">
     <link rel="stylesheet" href="css/animations.css">
+
+    <!-- PWA Manifest & Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6C63FF">
+    
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ClassFlow">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    
+    <!-- MS Tile Color -->
+    <meta name="msapplication-TileColor" content="#6C63FF">
 </head>
 
 <body data-theme="light">
@@ -426,6 +439,17 @@
 <script src="js/notifications.js"></script>
 <script src="js/profile.js"></script>
 <script src="js/app.js"></script>
+
+<!-- Register Service Worker -->
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Service Worker registered with scope:', reg.scope))
+                .catch(err => console.error('Service Worker registration failed:', err));
+        });
+    }
+</script>
 
 </body>
 </html>
