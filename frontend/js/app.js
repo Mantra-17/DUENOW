@@ -4,13 +4,15 @@
 /* ════════════════════════════════════════════
    DATA
 ════════════════════════════════════════════ */
-async function refreshAll() {
+async function refreshAll(forceSync = false) {
     const ico = id('refresh-ico');
-    ico.style.animation = 'spinR .7s linear infinite';
+    if (ico) ico.style.animation = 'spinR .7s linear infinite';
     hideErr();
     try {
-        // Trigger manual classroom sync on backend first
-        await api('/tasks/sync', { method: 'POST' });
+        if (forceSync) {
+            // Trigger manual classroom sync on backend first
+            await api('/tasks/sync', { method: 'POST' });
+        }
 
         const [tasks, stats, subjects] = await Promise.all([
             api('/tasks?sort=due_date&order=asc&limit=500').then(d => d.tasks || []),
@@ -25,7 +27,7 @@ async function refreshAll() {
     } catch(e) {
         showErr(e.message);
     } finally {
-        ico.style.animation = '';
+        if (ico) ico.style.animation = '';
     }
 }
 
