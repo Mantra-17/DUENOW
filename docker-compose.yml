@@ -56,7 +56,7 @@ services:
     volumes:
       - ./token.json:/app/token.json:ro
       - ./credentials.json:/app/credentials.json:ro
-    command: python main.py
+    command: python backend/main.py
 
 volumes:
   pg_data:

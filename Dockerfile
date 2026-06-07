@@ -35,8 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /install /usr/local
 
 # Copy application source
-COPY ai_helper.py api.py db.py main.py ./
-COPY static/ ./static/
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash classflow
@@ -50,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:5001/health || exit 1
 
 # Default: run the Flask API
-CMD ["python", "api.py"]
+CMD ["python", "backend/api.py"]
