@@ -26,6 +26,25 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "").strip()
 
+# Fallback to credentials.json if environment variables are not set (for local dev)
+if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+    import json
+    for path in ["credentials.json", "../credentials.json", "backend/credentials.json"]:
+        abs_path = os.path.normpath(os.path.join(os.path.dirname(__file__), path))
+        if os.path.exists(abs_path):
+            try:
+                with open(abs_path, "r") as f:
+                    data = json.load(f)
+                    config = data.get("installed") or data.get("web")
+                    if config:
+                        if not GOOGLE_CLIENT_ID:
+                            GOOGLE_CLIENT_ID = config.get("client_id", "").strip()
+                        if not GOOGLE_CLIENT_SECRET:
+                            GOOGLE_CLIENT_SECRET = config.get("client_secret", "").strip()
+                        break
+            except Exception as e:
+                logger.warning(f"Could not parse fallback credentials file {abs_path}: {e}")
+
 SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.profile",
