@@ -155,6 +155,10 @@ def check_api_key() -> Response | None:
     If MY_API_KEY is not configured in .env, auth is STILL enforced with a
     warning — we never silently open the API.
     """
+    # Always allow preflight OPTIONS requests without auth
+    if request.method == 'OPTIONS':
+        return None
+
     # Always allow static files and health check without auth
     if request.path in OPEN_PATHS or request.path.startswith('/static') \
             or request.path.startswith('/css') or request.path.startswith('/js') \

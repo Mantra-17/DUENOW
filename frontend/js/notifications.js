@@ -309,6 +309,10 @@ async function checkPushSubscriptionState() {
     const toggle = id('push-notif-toggle');
     if (!toggle) return;
     
+    console.log('[PUSH DEBUG] PushManager in window:', 'PushManager' in window);
+    console.log('[PUSH DEBUG] serviceWorker in navigator:', 'serviceWorker' in navigator);
+    console.log('[PUSH DEBUG] Notification permission:', typeof Notification !== 'undefined' ? Notification.permission : 'undefined');
+
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         // Push notifications not supported
         toggle.disabled = true;
