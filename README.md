@@ -1,4 +1,4 @@
-# ClassFlow Watcher 🎓
+git add README.md# ClassFlow Watcher 🎓
 
 Automatically tracks your Google Classroom assignments and exposes them via a REST API so you never miss a deadline.
 
@@ -81,3 +81,4 @@ python api.py
 - Never commit `credentials.json` or `token.json` to git — add them to `.gitignore`
 - Never commit your `.env` file
 # Gradewave
+# DUENOW
