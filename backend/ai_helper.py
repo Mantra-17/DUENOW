@@ -40,7 +40,7 @@ class AIResult(TypedDict):
 
 
 FALLBACK_RESULT: AIResult = {
-    "classification": "Task",
+    "classification": "Other",
     "summary": "AI categorization pending — could not reach Gemini API.",
     "difficulty": 1,
     "estimated_minutes": 30,

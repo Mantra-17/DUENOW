@@ -198,7 +198,7 @@ def sync_to_db(assignments: list[dict], course_name: str) -> tuple[int, int]:
                             "AI analysis pending…",  # placeholder — filled by Phase 2
                             5,                        # placeholder difficulty
                             60,                       # placeholder minutes
-                            "Task",                   # placeholder classification
+                            "Other",                  # placeholder classification
                             None,                     # no model yet
                             False,                    # ai_success=False → Phase 2 picks it up
                         ),
