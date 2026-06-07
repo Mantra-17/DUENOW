@@ -34,12 +34,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Copy application source
-COPY backend/ ./backend/
-COPY frontend/ ./frontend/
-
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash classflow
+
+# Copy application source with correct ownership
+COPY --chown=classflow:classflow backend/ ./backend/
+COPY --chown=classflow:classflow frontend/ ./frontend/
+
+# Ensure the workdir is owned by the non-root user so it can write local files (e.g. token.json, private_key.pem)
+RUN chown -R classflow:classflow /app
+
 USER classflow
 
 # Expose API port
@@ -51,3 +55,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 
 # Default: run the Flask API
 CMD ["python", "backend/api.py"]
+
