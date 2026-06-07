@@ -2702,10 +2702,15 @@ function markAllNotifsRead() {
 }
 
 function clearNotifRead() {
-    // Clears read state so all alerts appear unread again
-    saveReadSet(new Set());
+    // Permanently dismiss all "New from Classroom" alerts
+    localStorage.removeItem('cf-notif-new');
+    // Remove their IDs from read-set too (clean slate)
+    const s = getReadSet();
+    JSON.parse(localStorage.getItem('cf-notif-new') || '[]').forEach(n => s.delete(n.id));
+    saveReadSet(s);
     renderNotifPanel();
     updateNotifBadge();
+    showToast('Notifications cleared', 'check_circle');
 }
 
 function timeAgo(ts) {
