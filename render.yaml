@@ -1,5 +1,5 @@
 services:
-  # ── Flask API Web Service ──────────────────────────────────────────────────
+  # ── Flask API Web Service (Runs Flask API + Sync Engine Scheduler Inline) ───
   - type: web
     name: classflow-api
     env: docker
@@ -17,20 +17,7 @@ services:
         value: "false"
       - key: PORT
         value: "5001"
-    healthCheckPath: /health
-
-  # ── Sync Engine (Classroom Watcher) Background Worker ──────────────────────
-  - type: worker
-    name: classflow-watcher
-    env: docker
-    dockerContext: .
-    dockerfilePath: ./Dockerfile
-    dockerCommand: python backend/main.py # Override default CMD to run sync daemon
-    plan: free
-    envVars:
-      - key: DATABASE_URL
-        sync: false # Connection string to your Neon database
-      - key: GEMINI_API_KEY
-        sync: false # Your Google AI Studio Gemini API Key
       - key: POLL_INTERVAL_SECONDS
         value: "3600"
+    healthCheckPath: /health
+

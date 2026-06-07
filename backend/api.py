@@ -1112,6 +1112,38 @@ def start_deadline_scheduler():
     thread.start()
 
 
+def start_sync_watcher():
+    """Launch background thread to periodically run Classroom Watcher sync loop."""
+    import threading
+    import time
+    
+    poll_interval = int(os.getenv("POLL_INTERVAL_SECONDS", "3600"))
+    
+    def run_sync_loop():
+        # Wait 15 seconds to ensure database connectivity and Flask server are ready
+        time.sleep(15)
+        logger.info("Starting Classroom Watcher sync loop background thread...")
+        
+        # Import inside the thread to avoid circular imports during module load
+        try:
+            from main import get_assignments
+        except Exception as e:
+            logger.critical(f"Failed to import get_assignments from main: {e}", exc_info=True)
+            return
+            
+        while True:
+            try:
+                logger.info("⏳ Starting background sync cycle ...")
+                get_assignments()
+                logger.info(f"✅ Background sync complete. Next run in {poll_interval // 60} min...")
+            except Exception as e:
+                logger.error(f"Background sync cycle crashed: {e}", exc_info=True)
+            time.sleep(poll_interval)
+            
+    thread = threading.Thread(target=run_sync_loop, daemon=True)
+    thread.start()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1127,8 +1159,12 @@ if __name__ == "__main__":
     # Start deadline notification background scheduler
     start_deadline_scheduler()
 
+    # Start classroom sync background thread
+    start_sync_watcher()
+
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     port  = int(os.getenv("PORT", "5001"))
 
     logger.info(f"Starting ClassFlow API on port {port} (debug={debug})")
     app.run(host="0.0.0.0", port=port, debug=debug)
+

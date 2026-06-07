@@ -79,8 +79,12 @@ def _handle_signal(signum: int, _frame) -> None:
     _shutdown = True
 
 
-signal.signal(signal.SIGINT,  _handle_signal)
-signal.signal(signal.SIGTERM, _handle_signal)
+try:
+    signal.signal(signal.SIGINT,  _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+except ValueError:
+    logger.debug("Signal handlers could not be set. This is expected if not running in the main thread.")
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
