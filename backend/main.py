@@ -293,7 +293,24 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
     logger.info(f"Fetching course list from Google Classroom for user {user_id} …")
 
     try:
-        creds = Credentials(token=access_token)
+        from auth import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+        
+        # Get refresh token from database if available
+        refresh_token = None
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT google_refresh_token FROM users WHERE id = %s", (user_id,))
+                row = cur.fetchone()
+                if row:
+                    refresh_token = row[0]
+
+        creds = Credentials(
+            token=access_token,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET
+        )
         service = build("classroom", "v1", credentials=creds)
     except Exception as e:
         logger.error(f"  ❌ Could not build Classroom service for user {user_id}: {e}", exc_info=True)
@@ -302,6 +319,19 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
     try:
         results = service.courses().list(pageSize=50).execute()
         courses = results.get("courses", [])
+        
+        # If the token was refreshed, update it in the database
+        if creds.token != access_token:
+            logger.info(f"Access token for user {user_id} was automatically refreshed. Saving to database...")
+            import datetime
+            expiry = creds.expiry or (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=3600))
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE users SET google_access_token = %s, google_token_expiry = %s, updated_at = NOW() WHERE id = %s",
+                        (creds.token, expiry, user_id)
+                    )
+                conn.commit()
     except Exception as e:
         logger.error(f"  ❌ Failed to list courses for user {user_id}: {e}", exc_info=True)
         return
