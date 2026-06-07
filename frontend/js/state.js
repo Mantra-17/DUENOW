@@ -10,6 +10,9 @@ const REFRESH_MS   = 60_000;
 
 // Determine API base URL dynamically for Capacitor native WebViews
 const API_BASE_URL = (function() {
+    if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+        return CONFIG.API_URL;
+    }
     const isCapacitor = window.location.hostname === 'localhost' && window.location.port === '';
     if (isCapacitor) {
         // Fallback to Android Emulator local loopback. For physical devices, replace with host PC's local IP (e.g. http://192.168.x.x:5001)
