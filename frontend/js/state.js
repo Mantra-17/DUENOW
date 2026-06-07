@@ -4,7 +4,7 @@
 /* ════════════════════════════════════════════
    CONFIG
 ════════════════════════════════════════════ */
-const API_KEY      = 'your_secret_api_key_here';
+const API_KEY      = 'Classflow123';
 const HEADERS      = { 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' };
 const REFRESH_MS   = 60_000;
 

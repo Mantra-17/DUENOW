@@ -1,92 +1,5 @@
-'use strict';
 /* ClassFlow — App Core: Init, Navigation, Task Actions */
-
-/* ════════════════════════════════════════════
-   CONFIG
-════════════════════════════════════════════ */
-const API_KEY      = 'your_secret_api_key_here';
-const HEADERS      = { 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' };
-const REFRESH_MS   = 60_000;
-
-/* ════════════════════════════════════════════
-   STATE
-════════════════════════════════════════════ */
-let S = {
-    tasks:    [],
-    subjects: [],
-    stats:    null,
-    view:     'dashboard',
-    filter:   'all',
-    search:   '',
-};
-
-/* ════════════════════════════════════════════
-   THEME
-════════════════════════════════════════════ */
-function setTheme(t) {
-    document.body.dataset.theme = t;
-    localStorage.setItem('cf-theme', t);
-    id('tbtn-light').classList.toggle('on', t === 'light');
-    id('tbtn-dark').classList.toggle('on',  t === 'dark');
-}
-
-function initTheme() {
-    const saved = localStorage.getItem('cf-theme')
-        || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    setTheme(saved);
-}
-
-/* ════════════════════════════════════════════
-   AVATAR — DiceBear pixel-art (unique per device)
-════════════════════════════════════════════ */
-const AVATAR_STYLES = [
-    'pixel-art',
-    'adventurer-neutral',
-    'bottts-neutral',
-    'fun-emoji',
-    'lorelei-neutral',
-    'thumbs',
-];
-
-function initAvatar() {
-    // Retrieve or generate a permanent random seed + style
-    let seed  = localStorage.getItem('cf-avatar-seed');
-    let style = localStorage.getItem('cf-avatar-style');
-
-    if (!seed) {
-        // Random 12-char seed — unique per device/browser
-        seed  = Math.random().toString(36).slice(2, 14) +
-                Math.random().toString(36).slice(2, 8);
-        // Pick a random style from the curated list
-        style = AVATAR_STYLES[Math.floor(Math.random() * AVATAR_STYLES.length)];
-        localStorage.setItem('cf-avatar-seed',  seed);
-        localStorage.setItem('cf-avatar-style', style);
-    }
-
-    const url = `https://api.dicebear.com/9.x/${style}/svg?seed=${seed}&size=128&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
-
-    // Apply to both small (topbar) and large (profile dropdown)
-    ['avatar-img-sm', 'avatar-img-lg'].forEach(imgId => {
-        const img = id(imgId);
-        if (!img) return;
-        img.src = url;
-        img.onerror = () => {
-            // Fallback: hide broken img, show letter
-            img.style.display = 'none';
-            img.parentElement.insertAdjacentText('beforeend', 'S');
-        };
-    });
-}
-
-
-/* ════════════════════════════════════════════
-   API
-════════════════════════════════════════════ */
-async function api(path, opts = {}) {
-    const r = await fetch(path, { headers: HEADERS, ...opts });
-    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `HTTP ${r.status}`); }
-    return r.json();
-}
+'use strict';
 
 /* ════════════════════════════════════════════
    DATA
@@ -151,23 +64,6 @@ function setFilter(f) {
         el.classList.toggle('on', el.dataset.f === f)
     );
     renderTasks();
-}
-
-function sorted(arr, key) {
-    const a = [...arr];
-    if (key === 'due_date') {
-        a.sort((x,y) => {
-            if (!x.due_date && !y.due_date) return 0;
-            if (!x.due_date) return 1;
-            if (!y.due_date) return -1;
-            return x.due_date.localeCompare(y.due_date);
-        });
-    } else if (key === 'difficulty' || key === 'estimated_minutes') {
-        a.sort((x,y) => (y[key]||0) - (x[key]||0));
-    } else {
-        a.sort((x,y) => (y.created_at||'').localeCompare(x.created_at||''));
-    }
-    return a;
 }
 
 function filterSubject(sub) {
@@ -308,14 +204,17 @@ function toast(msg, isErr = false) {
     }, 3200);
 }
 
+// Alias used by clearNotifRead() in notifications.js
+function showToast(msg) { toast(msg); }
+
 /* ════════════════════════════════════════════
    SEARCH
 ════════════════════════════════════════════ */
-let st;
+let _st;
 id('search-inp').addEventListener('input', function() {
-    clearTimeout(st);
+    clearTimeout(_st);
     S.search = this.value.trim();
-    st = setTimeout(() => {
+    _st = setTimeout(() => {
         if (S.search && S.view !== 'tasks') show('tasks');
         else renderTasks();
     }, 200);
@@ -336,6 +235,6 @@ setInterval(refreshAll, REFRESH_MS);
 
 (async function init() {
     initTheme();
-    initAvatar();   // generate unique avatar immediately
+    initAvatar();
     await refreshAll();
 })();

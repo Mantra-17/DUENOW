@@ -162,3 +162,35 @@
     font-size: .6875rem; color: var(--on-surface-muted);
     white-space: nowrap; flex-shrink: 0; padding-top: 2px;
 }
+
+/* ── Dismiss (×) button ── */
+.notif-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 6px 10px 14px;
+    border-radius: var(--r-md);
+    transition: background .15s;
+    position: relative;
+}
+
+.notif-dismiss {
+    opacity: 0;
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border: none; border-radius: 50%;
+    background: transparent;
+    color: var(--on-surface-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity .15s, background .15s;
+    margin-top: 2px;
+    align-self: center;
+}
+
+.notif-dismiss .material-icons-round { font-size: 16px; }
+
+.notif-item:hover .notif-dismiss { opacity: 1; }
+
+.notif-dismiss:hover {
+    background: var(--error-container);
+    color: var(--error);
+}
