@@ -112,6 +112,7 @@ a { text-decoration: none; color: inherit; }
 .bar-actions {
     margin-left: auto;
     display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0;
 }
 
 /* Theme pill */

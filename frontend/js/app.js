@@ -9,6 +9,9 @@ async function refreshAll() {
     ico.style.animation = 'spinR .7s linear infinite';
     hideErr();
     try {
+        // Trigger manual classroom sync on backend first
+        await api('/tasks/sync', { method: 'POST' });
+
         const [tasks, stats, subjects] = await Promise.all([
             api('/tasks?sort=due_date&order=asc&limit=500').then(d => d.tasks || []),
             api('/stats'),

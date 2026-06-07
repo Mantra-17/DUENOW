@@ -30,6 +30,15 @@ function initAvatar() {
 
     const url = `https://api.dicebear.com/9.x/${style}/svg?seed=${seed}&size=128&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 
+    const cachedUser = localStorage.getItem('cf_cached_user');
+    let initial = 'S';
+    if (cachedUser) {
+        try {
+            const user = JSON.parse(cachedUser);
+            initial = (user.name ? user.name.charAt(0) : 'S').toUpperCase();
+        } catch(e) {}
+    }
+
     // Apply to both small (topbar) and large (profile dropdown)
     ['avatar-img-sm', 'avatar-img-lg'].forEach(imgId => {
         const img = id(imgId);
@@ -38,7 +47,11 @@ function initAvatar() {
         img.onerror = () => {
             // Fallback: hide broken img, show letter
             img.style.display = 'none';
-            img.parentElement.insertAdjacentText('beforeend', 'S');
+            // Clear existing text node first
+            Array.from(img.parentElement.childNodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) node.remove();
+            });
+            img.parentElement.appendChild(document.createTextNode(initial));
         };
     });
 }

@@ -89,12 +89,43 @@ function setupUser(user) {
     const emailEls = document.querySelectorAll('.pd-role');
     emailEls.forEach(el => el.textContent = user.email);
 
+    const smImg = id('avatar-img-sm');
+    const lgImg = id('avatar-img-lg');
+    const smBtn = id('avatar-btn');
+    const lgBtn = document.querySelector('.pd-avatar-lg');
+    const initial = (user.name ? user.name.charAt(0) : 'S').toUpperCase();
+
+    // Clear any previous fallback text nodes
+    if (smBtn) {
+        Array.from(smBtn.childNodes).forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE) node.remove();
+        });
+    }
+    if (lgBtn) {
+        Array.from(lgBtn.childNodes).forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE) node.remove();
+        });
+    }
+
+    if (smImg) smImg.style.display = 'block';
+    if (lgImg) lgImg.style.display = 'block';
+
     // Setup consistent DiceBear seed or Google picture
     if (user.picture) {
-        const smImg = id('avatar-img-sm');
-        const lgImg = id('avatar-img-lg');
-        if (smImg) smImg.src = user.picture;
-        if (lgImg) lgImg.src = user.picture;
+        if (smImg) {
+            smImg.src = user.picture;
+            smImg.onerror = () => {
+                smImg.style.display = 'none';
+                if (smBtn) smBtn.appendChild(document.createTextNode(initial));
+            };
+        }
+        if (lgImg) {
+            lgImg.src = user.picture;
+            lgImg.onerror = () => {
+                lgImg.style.display = 'none';
+                if (lgBtn) lgBtn.appendChild(document.createTextNode(initial));
+            };
+        }
     } else {
         // Set email/id as seed to get a stable, device-independent avatar
         localStorage.setItem('cf-avatar-seed', user.email || user.id);

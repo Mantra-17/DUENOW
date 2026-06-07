@@ -425,6 +425,27 @@ def health() -> tuple[Response, int]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# POST /tasks/sync
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/tasks/sync", methods=["POST"])
+def sync_tasks() -> tuple[Response, int]:
+    """Manually trigger inline sync with Google Classroom for the logged-in user."""
+    user_id = g.user_id
+    if not user_id:
+        return _err("User not authenticated", "UNAUTHORIZED", 401)
+        
+    try:
+        from main import sync_user_data_inline
+        # Run user synchronization synchronously so updated items are ready for client
+        sync_user_data_inline(user_id)
+        return jsonify({"status": "success", "message": "Classroom sync completed."}), 200
+    except Exception as e:
+        logger.error(f"Manual sync request failed for {user_id}: {e}", exc_info=True)
+        return _err(f"Sync failed: {str(e)}", "SYNC_ERROR", 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # GET /tasks
 # ─────────────────────────────────────────────────────────────────────────────
 
