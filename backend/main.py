@@ -445,6 +445,24 @@ def get_assignments() -> None:
         logger.warning("GEMINI_API_KEY not set — skipping AI analysis phase")
 
 
+def sync_user_data_inline(user_id: str) -> None:
+    """Sync a single user's data (Classroom or mock) inline."""
+    from auth import refresh_user_token
+    try:
+        logger.info(f"Triggering immediate inline sync for user {user_id}...")
+        if user_id.startswith("mock-"):
+            run_mock_sync(user_id)
+        else:
+            token = refresh_user_token(user_id)
+            if token:
+                run_classroom_sync(user_id, token)
+        # Run AI analysis immediately on any newly synced coursework
+        if os.getenv("GEMINI_API_KEY"):
+            run_ai_batch_analysis(delay_seconds=6.0)
+    except Exception as e:
+        logger.error(f"Inline background sync failed for user {user_id}: {e}", exc_info=True)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────

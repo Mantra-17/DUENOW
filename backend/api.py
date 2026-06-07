@@ -230,9 +230,18 @@ def auth_callback() -> Response:
     if not profile:
         return _err("Google authentication failed.", "AUTH_FAILED", 400)
 
+    user_id = profile["id"]
     # Generate persistent session token
-    token = generate_session_token(profile["id"])
+    token = generate_session_token(user_id)
     
+    # Trigger immediate sync in a daemon thread so login is fast but data is refreshed
+    try:
+        import threading
+        from main import sync_user_data_inline
+        threading.Thread(target=sync_user_data_inline, args=(user_id,), daemon=True).start()
+    except Exception as e:
+        logger.error(f"Failed to trigger background inline sync for {user_id}: {e}")
+
     # Redirect back to original client page (PWA web or local Capacitor webview)
     redirect_target = state or request.root_url
     if "?" in redirect_target:
@@ -364,6 +373,14 @@ def auth_mock_login() -> Response:
         
     token = login_mock_user(user_id, email, name)
     
+    # Trigger immediate mock sync in a daemon thread
+    try:
+        import threading
+        from main import sync_user_data_inline
+        threading.Thread(target=sync_user_data_inline, args=(user_id,), daemon=True).start()
+    except Exception as e:
+        logger.error(f"Failed to trigger background inline mock sync for {user_id}: {e}")
+
     if "?" in redirect_url:
         return redirect(f"{redirect_url.rstrip('/')}&token={token}")
     else:
