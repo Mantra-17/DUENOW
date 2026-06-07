@@ -1,0 +1,22 @@
+# ClassFlow Watcher — Python dependencies
+# Pin major versions for production stability
+
+# ── Google Classroom ──────────────────────────────────────────────────────────
+google-api-python-client>=2.100.0,<3.0
+google-auth>=2.23.0,<3.0
+google-auth-httplib2>=0.2.0,<1.0
+google-auth-oauthlib>=1.1.0,<2.0
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# psycopg2-binary includes the C extension — fast and no build deps needed
+psycopg2-binary>=2.9.9,<3.0
+
+# ── API Server ────────────────────────────────────────────────────────────────
+flask>=3.0.0,<4.0
+flask-cors>=4.0.0,<5.0
+
+# ── HTTP client (for Gemini REST calls) ───────────────────────────────────────
+requests>=2.31.0,<3.0
+
+# ── Environment variable loading ──────────────────────────────────────────────
+python-dotenv>=1.0.0,<2.0

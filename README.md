@@ -1,4 +1,4 @@
-git add README.md# ClassFlow Watcher 🎓
+git add README.md# DUENOW 🎓
 
 Automatically tracks your Google Classroom assignments and exposes them via a REST API so you never miss a deadline.
 

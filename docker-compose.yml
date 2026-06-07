@@ -1,0 +1,62 @@
+
+services:
+  # ── PostgreSQL Database ─────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: classflow_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: classflow
+      POSTGRES_USER: classflow
+      POSTGRES_PASSWORD: classflow_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U classflow -d classflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Flask API ───────────────────────────────────────────────────────────────
+  api:
+    build: .
+    container_name: classflow_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://classflow:classflow_secret@db:5432/classflow
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      MY_API_KEY: ${MY_API_KEY}
+      FLASK_DEBUG: "false"
+      PORT: "5001"
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Sync Engine (Classroom watcher) ────────────────────────────────────────
+  watcher:
+    build: .
+    container_name: classflow_watcher
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://classflow:classflow_secret@db:5432/classflow
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      POLL_INTERVAL_SECONDS: "3600"
+    volumes:
+      - ./token.json:/app/token.json:ro
+      - ./credentials.json:/app/credentials.json:ro
+    command: python main.py
+
+volumes:
+  pg_data:
