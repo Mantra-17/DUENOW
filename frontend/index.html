@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ClassFlow — AI-powered student assignment dashboard. Sync Google Classroom, track deadlines, and get AI-analysed insights on every task.">
+    <title>ClassFlow — Student Dashboard</title>
+
+    <!-- Google Fonts: Google Sans + Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <!-- ═══ STYLESHEETS ═══════════════════════════════════════════════ -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/cards.css">
+    <link rel="stylesheet" href="css/subjects.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/profile.css">
+    <link rel="stylesheet" href="css/notifications.css">
+    <link rel="stylesheet" href="css/utilities.css">
+    <link rel="stylesheet" href="css/animations.css">
+</head>
+
+<body data-theme="light">
+<div class="shell">
+
+<!-- ──────────────────────────────────────────────────────────────
+     TOP APP BAR
+────────────────────────────────────────────────────────────────── -->
+<header class="top-bar" role="banner">
+    <div class="bar-brand">
+        <!-- Brand icon — Google Classroom-inspired -->
+        <div class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2"  y="3"  width="18" height="2.5" rx="1.2" fill="rgba(255,255,255,.95)"/>
+                <rect x="2"  y="9.7" width="13" height="2.5" rx="1.2" fill="rgba(255,255,255,.75)"/>
+                <rect x="2"  y="16.4" width="16" height="2.5" rx="1.2" fill="rgba(255,255,255,.95)"/>
+                <circle cx="18" cy="17" r="4" fill="#34A853"/>
+                <path d="M16 17l1.4 1.5L20 15" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <span class="brand-name">ClassFlow</span>
+    </div>
+
+    <div class="bar-search" role="search">
+        <span class="material-icons-round srch-ico" aria-hidden="true">search</span>
+        <input type="search" id="search-inp" placeholder="Search tasks, subjects… (Ctrl K)" aria-label="Search assignments" autocomplete="off">
+    </div>
+
+    <div class="bar-actions">
+        <!-- Theme toggle -->
+        <div class="theme-pill" role="group" aria-label="Color theme">
+            <button class="on" id="tbtn-light" onclick="setTheme('light')" aria-label="Light mode" title="Light mode">
+                <span class="material-icons-round" style="font-size:17px">light_mode</span>
+            </button>
+            <button id="tbtn-dark" onclick="setTheme('dark')" aria-label="Dark mode" title="Dark mode">
+                <span class="material-icons-round" style="font-size:17px">dark_mode</span>
+            </button>
+        </div>
+
+        <!-- Refresh -->
+        <button class="icon-btn" id="btn-refresh" title="Refresh data" aria-label="Refresh data" onclick="refreshAll()">
+            <span class="material-icons-round" id="refresh-ico">sync</span>
+            <span class="sync-dot" id="sync-dot"></span>
+        </button>
+
+        <!-- Notifications Bell -->
+        <div class="notif-wrap" id="notif-wrap">
+            <button class="icon-btn" id="btn-notif" onclick="toggleNotif()" aria-label="Notifications" title="Notifications">
+                <span class="material-icons-round">notifications</span>
+                <span class="notif-badge hidden" id="notif-badge">0</span>
+            </button>
+
+            <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notification panel">
+                <div class="notif-panel-hdr">
+                    <span class="notif-panel-title">
+                        <span class="material-icons-round" style="font-size:18px;color:var(--primary)">notifications_active</span>
+                        Notifications
+                    </span>
+                    <div class="notif-panel-acts">
+                        <button class="np-act" onclick="markAllNotifsRead()">Mark all read</button>
+                        <button class="np-act" onclick="clearNotifRead()">Clear</button>
+                    </div>
+                </div>
+                <div class="notif-list" id="notif-list"></div>
+            </div>
+        </div>
+
+        <!-- Avatar + Profile Dropdown -->
+        <div class="profile-wrap" id="profile-wrap">
+            <div class="avatar" id="avatar-btn" onclick="toggleProfile()" aria-label="Open profile" title="Profile" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleProfile()">
+                <img id="avatar-img-sm" src="" alt="Your avatar" width="34" height="34">
+            </div>
+
+            <div class="profile-drop" id="profile-drop" role="menu" aria-label="Profile menu">
+                <!-- Header -->
+                <div class="pd-header">
+                    <div class="pd-avatar-lg">
+                        <img id="avatar-img-lg" src="" alt="Your avatar" width="56" height="56">
+                    </div>
+                    <div class="pd-info">
+                        <div class="pd-name">Student</div>
+                        <div class="pd-role">ClassFlow Dashboard</div>
+                    </div>
+                </div>
+
+                <!-- Quick stats -->
+                <div class="pd-stats">
+                    <div class="pd-stat">
+                        <span class="pd-stat-val" id="pd-total">—</span>
+                        <span class="pd-stat-lbl">Total</span>
+                    </div>
+                    <div class="pd-stat">
+                        <span class="pd-stat-val" id="pd-pending">—</span>
+                        <span class="pd-stat-lbl">Pending</span>
+                    </div>
+                    <div class="pd-stat">
+                        <span class="pd-stat-val" id="pd-done">—</span>
+                        <span class="pd-stat-lbl">Completed</span>
+                    </div>
+                </div>
+
+                <!-- Menu items -->
+                <div class="pd-menu">
+                    <button class="pd-menu-item" onclick="toggleThemeFromMenu()">
+                        <span class="material-icons-round">contrast</span>
+                        <span id="pd-theme-lbl">Switch to Dark Mode</span>
+                    </button>
+                    <button class="pd-menu-item" onclick="refreshAll();closeProfile()">
+                        <span class="material-icons-round">sync</span>
+                        Sync Now
+                    </button>
+                    <div class="pd-divider"></div>
+                    <button class="pd-menu-item" onclick="show('subjects');closeProfile()">
+                        <span class="material-icons-round">menu_book</span>
+                        My Subjects
+                    </button>
+                    <button class="pd-menu-item" onclick="show('done');closeProfile()">
+                        <span class="material-icons-round">task_alt</span>
+                        Completed Tasks
+                    </button>
+                    <div class="pd-divider"></div>
+                    <button class="pd-menu-item danger" onclick="closeProfile()">
+                        <span class="material-icons-round">logout</span>
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- ──────────────────────────────────────────────────────────────
+     LEFT NAV RAIL
+────────────────────────────────────────────────────────────────── -->
+<nav class="nav-rail" aria-label="Main navigation">
+    <button class="nav-item active" id="n-dashboard" onclick="show('dashboard')" aria-current="page">
+        <span class="material-icons-round">dashboard</span>
+        <span>Dashboard</span>
+        <span class="nav-badge" id="nb-dashboard">—</span>
+    </button>
+
+    <button class="nav-item" id="n-tasks" onclick="show('tasks')">
+        <span class="material-icons-round">assignment</span>
+        <span>Assignments</span>
+        <span class="nav-badge" id="nb-tasks">—</span>
+    </button>
+
+    <button class="nav-item" id="n-subjects" onclick="show('subjects')">
+        <span class="material-icons-round">menu_book</span>
+        <span>Subjects</span>
+        <span class="nav-badge" id="nb-subjects">—</span>
+    </button>
+
+    <button class="nav-item" id="n-done" onclick="show('done')">
+        <span class="material-icons-round">task_alt</span>
+        <span>Completed</span>
+        <span class="nav-badge" id="nb-done">—</span>
+    </button>
+
+    <div class="nav-div"></div>
+    <div class="nav-lbl">Quick Filters</div>
+
+    <button class="nav-item" id="n-cie" onclick="quickFilter('CIE')">
+        <span class="material-icons-round" style="color:var(--cc)">quiz</span>
+        <span>CIE Exams</span>
+        <span class="nav-badge" id="nb-cie">—</span>
+    </button>
+
+    <button class="nav-item" id="n-practical" onclick="quickFilter('Practical')">
+        <span class="material-icons-round" style="color:var(--cp)">science</span>
+        <span>Practicals</span>
+        <span class="nav-badge" id="nb-practical">—</span>
+    </button>
+
+    <button class="nav-item" id="n-project" onclick="quickFilter('Project')">
+        <span class="material-icons-round" style="color:var(--cpr)">rocket_launch</span>
+        <span>Projects</span>
+        <span class="nav-badge" id="nb-project">—</span>
+    </button>
+
+    <div class="nav-div"></div>
+</nav>
+
+<!-- ──────────────────────────────────────────────────────────────
+     MAIN CONTENT
+────────────────────────────────────────────────────────────────── -->
+<main class="main" id="main" role="main">
+
+    <!-- Error banner -->
+    <div class="err-banner" id="err-banner" style="display:none" role="alert" aria-live="polite">
+        <span class="material-icons-round">wifi_off</span>
+        <span id="err-msg">Cannot connect to API.</span>
+        <button class="btn btn-ghost" onclick="refreshAll()" style="margin-left:auto;height:auto;padding:4px 10px;font-size:.8rem">Retry</button>
+    </div>
+
+    <!-- ===== DASHBOARD VIEW ===== -->
+    <section class="view show" id="v-dashboard" aria-label="Dashboard">
+
+        <div class="stats-row" id="stats-row">
+            <div class="skel skel-stat"></div>
+            <div class="skel skel-stat"></div>
+            <div class="skel skel-stat"></div>
+            <div class="skel skel-stat"></div>
+        </div>
+
+        <div class="ai-bar" id="ai-bar" style="display:none">
+            <span class="material-icons-round ai-bar-ico">auto_awesome</span>
+            <div class="ai-track"><div class="ai-fill" id="ai-fill" style="width:0%"></div></div>
+            <span class="ai-txt" id="ai-txt">Analyzing…</span>
+        </div>
+
+        <!-- Urgent tasks -->
+        <div id="urgent-wrap" style="margin-bottom:20px;display:none">
+            <div class="urgent-hdr">
+                <div class="pulse-dot"></div>
+                <span class="urgent-lbl">⚠ Due Very Soon</span>
+            </div>
+            <div class="task-list" id="urgent-list"></div>
+        </div>
+
+        <!-- All pending -->
+        <div class="sec-hdr">
+            <h2 class="sec-title">All Assignments</h2>
+            <div style="display:flex;align-items:center;gap:8px">
+                <span class="sort-lbl">Sort:</span>
+                <select class="sort-sel" id="sort-dash" onchange="renderDash()">
+                    <option value="due_date">Due Date ↑</option>
+                    <option value="difficulty">Difficulty ↓</option>
+                    <option value="estimated_minutes">Study Time ↓</option>
+                    <option value="created_at">Newest</option>
+                </select>
+                <span class="count-lbl" id="dash-count"></span>
+            </div>
+        </div>
+
+        <div class="task-list" id="dash-list">
+            <div class="skel skel-card"></div>
+            <div class="skel skel-card"></div>
+            <div class="skel skel-card"></div>
+        </div>
+    </section>
+
+    <!-- ===== ASSIGNMENTS VIEW ===== -->
+    <section class="view" id="v-tasks" aria-label="Assignments">
+        <div class="sec-hdr">
+            <h1 class="sec-title">Assignments</h1>
+        </div>
+
+        <div class="chips" id="chips" role="group" aria-label="Filter by type">
+            <div class="chip on"  onclick="setFilter('all')"        data-f="all">
+                <span class="material-icons-round">filter_list</span> All
+                <span class="chip-n" id="cn-all">0</span>
+            </div>
+            <div class="chip" onclick="setFilter('Assignment')" data-f="Assignment">
+                <span class="material-icons-round" style="color:var(--ca)">edit_note</span> Assignment
+                <span class="chip-n" id="cn-Assignment">0</span>
+            </div>
+            <div class="chip" onclick="setFilter('CIE')" data-f="CIE">
+                <span class="material-icons-round" style="color:var(--cc)">quiz</span> CIE Exam
+                <span class="chip-n" id="cn-CIE">0</span>
+            </div>
+            <div class="chip" onclick="setFilter('Practical')" data-f="Practical">
+                <span class="material-icons-round" style="color:var(--cp)">science</span> Practical
+                <span class="chip-n" id="cn-Practical">0</span>
+            </div>
+            <div class="chip" onclick="setFilter('Project')" data-f="Project">
+                <span class="material-icons-round" style="color:var(--cpr)">rocket_launch</span> Project
+                <span class="chip-n" id="cn-Project">0</span>
+            </div>
+            <div class="chip" onclick="setFilter('Other')" data-f="Other">
+                <span class="material-icons-round">more_horiz</span> Other
+                <span class="chip-n" id="cn-Other">0</span>
+            </div>
+        </div>
+
+        <div class="sort-row">
+            <span class="sort-lbl">Sort:</span>
+            <select class="sort-sel" id="sort-tasks" onchange="renderTasks()">
+                <option value="due_date">Due Date ↑</option>
+                <option value="difficulty">Difficulty ↓</option>
+                <option value="estimated_minutes">Study Time ↓</option>
+                <option value="created_at">Newest</option>
+            </select>
+            <span class="count-lbl" id="tasks-count" style="margin-left:auto"></span>
+        </div>
+
+        <div class="task-list" id="tasks-list">
+            <div class="skel skel-card"></div>
+            <div class="skel skel-card"></div>
+            <div class="skel skel-card"></div>
+        </div>
+    </section>
+
+    <!-- ===== SUBJECTS VIEW ===== -->
+    <section class="view" id="v-subjects" aria-label="Subjects">
+        <div class="sec-hdr">
+            <h1 class="sec-title">Subjects</h1>
+            <span class="count-lbl" id="subj-count"></span>
+        </div>
+        <div class="subjects-grid" id="subj-grid">
+            <div class="skel" style="height:140px;border-radius:var(--r-lg)"></div>
+            <div class="skel" style="height:140px;border-radius:var(--r-lg)"></div>
+            <div class="skel" style="height:140px;border-radius:var(--r-lg)"></div>
+        </div>
+    </section>
+
+    <!-- ===== COMPLETED VIEW ===== -->
+    <section class="view" id="v-done" aria-label="Completed tasks">
+        <div class="sec-hdr">
+            <h1 class="sec-title">Completed</h1>
+            <span class="count-lbl" id="done-count"></span>
+        </div>
+        <div class="task-list" id="done-list">
+            <div class="skel skel-card"></div>
+            <div class="skel skel-card"></div>
+        </div>
+    </section>
+
+</main>
+</div><!-- /.shell -->
+
+<!-- ──────────────────────────────────────────────────────────────
+     MOBILE BOTTOM NAV
+────────────────────────────────────────────────────────────────── -->
+<nav class="mob-nav" aria-label="Mobile navigation">
+    <button class="mob-btn on" id="mb-dashboard" onclick="show('dashboard')">
+        <span class="material-icons-round">dashboard</span>Dashboard
+    </button>
+    <button class="mob-btn" id="mb-tasks" onclick="show('tasks')">
+        <span class="material-icons-round">assignment</span>Tasks
+    </button>
+    <button class="mob-btn" id="mb-subjects" onclick="show('subjects')">
+        <span class="material-icons-round">menu_book</span>Subjects
+    </button>
+    <button class="mob-btn" id="mb-done" onclick="show('done')">
+        <span class="material-icons-round">task_alt</span>Done
+    </button>
+</nav>
+
+<!-- ──────────────────────────────────────────────────────────────
+     FAB
+────────────────────────────────────────────────────────────────── -->
+<button class="fab" id="fab" onclick="openModal()" aria-label="Add new assignment">
+    <span class="material-icons-round">add</span>
+    Add Task
+</button>
+
+<!-- ──────────────────────────────────────────────────────────────
+     ADD TASK MODAL
+────────────────────────────────────────────────────────────────── -->
+<div class="modal-bg" id="modal-bg" role="dialog" aria-modal="true" aria-labelledby="modal-title-lbl" onclick="bgClick(event)">
+    <div class="modal-box">
+        <div class="modal-hdr">
+            <h2 class="modal-title" id="modal-title-lbl">Add Assignment</h2>
+            <button class="modal-close" onclick="closeModal()" aria-label="Close dialog">
+                <span class="material-icons-round">close</span>
+            </button>
+        </div>
+
+        <form id="add-form" onsubmit="submitTask(event)" novalidate>
+            <div class="form-fld">
+                <label class="form-lbl" for="f-title">Title <span class="form-req">*</span></label>
+                <input class="form-inp" type="text" id="f-title" placeholder="e.g. Assignment 5: Binary Trees" required maxlength="500" autocomplete="off">
+            </div>
+
+            <div class="form-row">
+                <div class="form-fld">
+                    <label class="form-lbl" for="f-subject">Subject <span class="form-req">*</span></label>
+                    <select class="form-inp" id="f-subject" required>
+                        <option value="">Select subject…</option>
+                    </select>
+                </div>
+                <div class="form-fld">
+                    <label class="form-lbl" for="f-due">Due Date</label>
+                    <input class="form-inp" type="date" id="f-due">
+                </div>
+            </div>
+
+            <div class="modal-ftr">
+                <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn btn-fill" id="submit-btn">
+                    <span class="material-icons-round" style="font-size:17px">auto_awesome</span>
+                    Analyze &amp; Add
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
+<!-- ═══ JAVASCRIPT — load order matters ══════════════════════════ -->
+<script src="js/state.js"></script>
+<script src="js/api.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/avatar.js"></script>
+<script src="js/render.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/profile.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

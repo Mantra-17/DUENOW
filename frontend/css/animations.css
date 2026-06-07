@@ -1,0 +1,32 @@
+/* ClassFlow — Keyframe Animations */
+
+/* ═══════════════════════════════════════════════════════════════
+   KEYFRAMES
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(7px); }
+    to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+
+@keyframes pulseDot {
+    0%,100% { opacity:1; transform:scale(1);   }
+    50%      { opacity:.5; transform:scale(1.3); }
+}
+
+@keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+@keyframes slideUp {
+    from { opacity:0; transform:translateY(40px); }
+    to   { opacity:1; transform:translateY(0);    }
+}
+
+@keyframes spinR { to { transform: rotate(360deg); } }
+
+@keyframes toastIn {
+    from { opacity:0; transform:translateX(18px); }
+    to   { opacity:1; transform:translateX(0);    }
+}

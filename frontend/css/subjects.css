@@ -1,0 +1,72 @@
+/* ClassFlow — Subjects Grid */
+
+/* ═══════════════════════════════════════════════════════════════
+   SUBJECTS GRID
+   ═══════════════════════════════════════════════════════════════ */
+.subjects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 16px;
+}
+
+.subj-card {
+    background: var(--surface);
+    border: 1px solid var(--outline);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    cursor: pointer;
+    transition: all .2s var(--ease);
+    box-shadow: var(--sh-sm);
+}
+
+.subj-card:hover {
+    box-shadow: var(--sh-md);
+    transform: translateY(-2px);
+    border-color: var(--primary);
+}
+
+.subj-card-top {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.subj-ico {
+    width: 40px; height: 40px; border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Google Sans', sans-serif;
+    font-size: 1rem; font-weight: 700;
+    color: #fff; flex-shrink: 0;
+}
+
+.ring-wrap { position: relative; width: 44px; height: 44px; }
+.ring-wrap svg { transform: rotate(-90deg); }
+.ring-bg  { fill: none; stroke: var(--outline); stroke-width: 3; }
+.ring-fg  { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+
+.ring-pct {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    font-size: .5625rem; font-weight: 700;
+    color: var(--on-surface-var);
+}
+
+.subj-name {
+    font-family: 'Google Sans', sans-serif;
+    font-size: .9375rem; font-weight: 600;
+    color: var(--on-surface); line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.subj-meta {
+    display: flex; gap: 14px;
+    font-size: .8125rem; color: var(--on-surface-muted);
+}
+
+.subj-meta span {
+    display: flex; align-items: center; gap: 3px;
+}
+
+.subj-meta .material-icons-round { font-size: 14px; }

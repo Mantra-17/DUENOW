@@ -1,0 +1,82 @@
+/* ClassFlow — Design Tokens: CSS Custom Properties for light + dark themes */
+
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN TOKENS — LIGHT + DARK (Material Design 3)
+   ═══════════════════════════════════════════════════════════════ */
+:root, [data-theme="light"] {
+    --bg:                  #F8F9FA;
+    --surface:             #FFFFFF;
+    --surface-variant:     #F1F3F4;
+    --surface-hover:       #E8EAED;
+    --on-surface:          #202124;
+    --on-surface-var:      #5F6368;
+    --on-surface-muted:    #9AA0A6;
+    --outline:             #DADCE0;
+    --outline-var:         #E8EAED;
+
+    --primary:             #1A73E8;
+    --primary-container:   #D2E3FC;
+    --primary-hover:       #1557B0;
+    --on-primary:          #FFFFFF;
+    --on-primary-container:#041E49;
+
+    --error:               #D93025;
+    --error-container:     #FCE8E6;
+    --warning:             #F29900;
+    --warning-container:   #FEF7E0;
+    --success:             #1E8E3E;
+    --success-container:   #E6F4EA;
+
+    /* Classification accent colours */
+    --ca:  #1A73E8; --ca-bg: rgba(26,115,232,0.09);   /* Assignment */
+    --cc:  #D93025; --cc-bg: rgba(217,48,37,0.09);    /* CIE        */
+    --cp:  #1E8E3E; --cp-bg: rgba(30,142,62,0.09);    /* Practical  */
+    --cpr: #F29900; --cpr-bg:rgba(242,153,0,0.09);    /* Project    */
+    --co:  #9AA0A6; --co-bg: rgba(154,160,166,0.09);  /* Other      */
+
+    --nav-w:       240px;
+    --hdr-h:       64px;
+    --r-sm:        8px;
+    --r-md:        12px;
+    --r-lg:        16px;
+    --r-xl:        24px;
+    --sh-sm:       0 1px 3px rgba(0,0,0,.10), 0 1px 2px rgba(0,0,0,.07);
+    --sh-md:       0 2px 8px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.08);
+    --sh-lg:       0 6px 24px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+    --ease:        cubic-bezier(.2,0,0,1);
+}
+
+[data-theme="dark"] {
+    --bg:                  #1C1B1F;
+    --surface:             #2D2C31;
+    --surface-variant:     #3D3B42;
+    --surface-hover:       #49454F;
+    --on-surface:          #E6E1E5;
+    --on-surface-var:      #CAC4D0;
+    --on-surface-muted:    #938F99;
+    --outline:             #49454F;
+    --outline-var:         #3D3B42;
+
+    --primary:             #8AB4F8;
+    --primary-container:   #1A3461;
+    --primary-hover:       #A8C7FA;
+    --on-primary:          #002EA6;
+    --on-primary-container:#D2E3FC;
+
+    --error:               #F28B82;
+    --error-container:     rgba(217,48,37,.18);
+    --warning:             #FDD663;
+    --warning-container:   rgba(242,153,0,.18);
+    --success:             #81C995;
+    --success-container:   rgba(30,142,62,.18);
+
+    --ca:  #8AB4F8; --ca-bg: rgba(138,180,248,.13);
+    --cc:  #F28B82; --cc-bg: rgba(242,139,130,.13);
+    --cp:  #81C995; --cp-bg: rgba(129,201,149,.13);
+    --cpr: #FDD663; --cpr-bg:rgba(253,214,99,.13);
+    --co:  #9AA0A6; --co-bg: rgba(154,160,166,.13);
+
+    --sh-sm: 0 1px 3px rgba(0,0,0,.35);
+    --sh-md: 0 2px 10px rgba(0,0,0,.45);
+    --sh-lg: 0 6px 28px rgba(0,0,0,.55);
+}
