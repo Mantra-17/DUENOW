@@ -68,6 +68,7 @@ self.addEventListener('fetch', event => {
     if (url.pathname.startsWith('/tasks') ||
         url.pathname.startsWith('/stats') ||
         url.pathname.startsWith('/subjects') ||
+        url.pathname.startsWith('/notifications') ||
         url.pathname.startsWith('/health')) {
         event.respondWith(networkFirst(request));
         return;

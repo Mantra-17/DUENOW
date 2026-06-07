@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS assignments (
                       )),
     model_used        TEXT,
     ai_success        BOOLEAN     NOT NULL DEFAULT FALSE,
+    deadline_notified BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -135,6 +136,15 @@ CREATE INDEX IF NOT EXISTS idx_assignments_classification
 -- Composite index for the most common combined query
 CREATE INDEX IF NOT EXISTS idx_assignments_subject_completed
     ON assignments(LOWER(subject), is_completed);
+
+-- Push subscriptions table
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id                SERIAL PRIMARY KEY,
+    endpoint          TEXT        NOT NULL UNIQUE,
+    p256dh            TEXT        NOT NULL,
+    auth              TEXT        NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 # Additive migrations — safe to run on existing tables.
@@ -142,6 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_assignments_subject_completed
 MIGRATION_SQL = [
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS model_used TEXT",
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS ai_success BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS deadline_notified BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
 ]

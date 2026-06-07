@@ -49,7 +49,7 @@ from psycopg2.extras import RealDictCursor
 from db import get_conn, init_db, check_db_health
 from ai_helper import analyze_assignment
 
-# ─────────────────────────────────────────────────────────────────────────────
+
 # App setup — static files served from ../frontend/
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -64,6 +64,31 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("classflow.api")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VAPID setup for Web Push
+# ─────────────────────────────────────────────────────────────────────────────
+from py_vapid import Vapid
+from cryptography.hazmat.primitives import serialization
+import base64
+
+VAPID_KEY_PATH = os.path.join(os.path.dirname(__file__), 'private_key.pem')
+vapid_obj = Vapid()
+
+if not os.path.exists(VAPID_KEY_PATH):
+    logger.info("Generating a new VAPID private/public key pair...")
+    vapid_obj.generate_keys()
+    vapid_obj.save_key(VAPID_KEY_PATH)
+else:
+    logger.info(f"Loading existing VAPID keys from {VAPID_KEY_PATH}")
+    vapid_obj = Vapid.from_file(VAPID_KEY_PATH)
+
+# Derived base64url-encoded application server key (raw public key)
+_pub_bytes = vapid_obj.public_key.public_bytes(
+    encoding=serialization.Encoding.X962,
+    format=serialization.PublicFormat.UncompressedPoint
+)
+VAPID_PUBLIC_KEY = base64.urlsafe_b64encode(_pub_bytes).decode().rstrip('=')
 
 API_KEY = os.getenv("MY_API_KEY", "").strip()
 
@@ -134,7 +159,7 @@ def check_api_key() -> Response | None:
     if request.path in OPEN_PATHS or request.path.startswith('/static') \
             or request.path.startswith('/css') or request.path.startswith('/js') \
             or request.path.startswith('/fonts') or request.path.startswith('/icons') \
-            or request.path in ('/favicon.ico', '/manifest.json', '/sw.js'):
+            or request.path in ('/favicon.ico', '/manifest.json', '/sw.js', '/notifications/vapid-key'):
         return None
 
     if not API_KEY:
@@ -828,6 +853,262 @@ def service_worker() -> Response:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Push Notifications Endpoints & Scheduler
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/notifications/vapid-key", methods=["GET"])
+def get_vapid_key() -> tuple[Response, int]:
+    """Return the VAPID public key to client."""
+    return jsonify({"public_key": VAPID_PUBLIC_KEY}), 200
+
+
+@app.route("/notifications/subscribe", methods=["POST"])
+def subscribe() -> tuple[Response, int]:
+    """Store client push subscription."""
+    body = request.get_json(silent=True)
+    if not body or "subscription" not in body:
+        return _err("Request body must contain 'subscription' object.", "INVALID_BODY")
+    
+    sub = body["subscription"]
+    endpoint = sub.get("endpoint")
+    keys = sub.get("keys", {})
+    p256dh = keys.get("p256dh")
+    auth = keys.get("auth")
+    
+    if not endpoint or not p256dh or not auth:
+        return _err("Subscription endpoint, p256dh, and auth keys are required.", "MISSING_FIELD")
+        
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO push_subscriptions (endpoint, p256dh, auth)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (endpoint) DO UPDATE
+                    SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
+                    RETURNING id
+                    """,
+                    (endpoint, p256dh, auth)
+                )
+                sub_id = cur.fetchone()[0]
+            conn.commit()
+            
+        logger.info(f"Registered push subscription: id={sub_id}, endpoint={endpoint[:50]}...")
+        return jsonify({"status": "success", "id": sub_id}), 200
+        
+    except Exception as e:
+        logger.error(f"POST /notifications/subscribe failed: {e}", exc_info=True)
+        return _err("Internal server error.", "DB_ERROR", 500)
+
+
+@app.route("/notifications/unsubscribe", methods=["POST"])
+def unsubscribe() -> tuple[Response, int]:
+    """Remove client push subscription."""
+    body = request.get_json(silent=True)
+    if not body or "endpoint" not in body:
+        return _err("Request body must contain 'endpoint'.", "INVALID_BODY")
+        
+    endpoint = body["endpoint"]
+    
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM push_subscriptions WHERE endpoint = %s RETURNING id",
+                    (endpoint,)
+                )
+                deleted = cur.fetchone()
+            conn.commit()
+            
+        if not deleted:
+            return jsonify({"status": "not_found", "message": "Subscription not found."}), 200
+            
+        logger.info(f"Unregistered push subscription: endpoint={endpoint[:50]}...")
+        return jsonify({"status": "success"}), 200
+        
+    except Exception as e:
+        logger.error(f"POST /notifications/unsubscribe failed: {e}", exc_info=True)
+        return _err("Internal server error.", "DB_ERROR", 500)
+
+
+@app.route("/admin/test-push", methods=["POST"])
+def test_push() -> tuple[Response, int]:
+    """Trigger a test push notification to all subscribed clients."""
+    from pywebpush import webpush, WebPushException
+    import json
+    
+    body = request.get_json(silent=True) or {}
+    title = body.get("title", "ClassFlow Alert 🚀")
+    message = body.get("message", "Test push notification successfully received!")
+    url = body.get("url", "/")
+    
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM push_subscriptions")
+                subs = [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Failed to fetch subscriptions: {e}")
+        return _err("Database query failed.", "DB_ERROR", 500)
+        
+    if not subs:
+        return jsonify({"status": "no_subscriptions", "message": "No active subscriptions found in database."}), 200
+        
+    sent_count = 0
+    fail_count = 0
+    cleaned_count = 0
+    
+    payload = json.dumps({
+        "title": title,
+        "body": message,
+        "url": url,
+        "tag": "classflow-test"
+    })
+    
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub["endpoint"],
+                    "keys": {
+                        "p256dh": sub["p256dh"],
+                        "auth": sub["auth"]
+                    }
+                },
+                data=payload,
+                vapid_private_key=VAPID_KEY_PATH,
+                vapid_claims={"sub": "mailto:classflow-admin@example.com"}
+            )
+            sent_count += 1
+        except WebPushException as ex:
+            logger.warning(f"Push notification failed for {sub['endpoint'][:40]}: {ex}")
+            fail_count += 1
+            # Clean up dead subscriptions (404 Not Found or 410 Gone)
+            if ex.response is not None and ex.response.status_code in (404, 410):
+                try:
+                    with get_conn() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("DELETE FROM push_subscriptions WHERE id = %s", (sub["id"],))
+                        conn.commit()
+                    cleaned_count += 1
+                except Exception as db_ex:
+                    logger.error(f"Failed to delete dead subscription {sub['id']}: {db_ex}")
+                    
+    logger.info(f"Test push finished: {sent_count} sent, {fail_count} failed, {cleaned_count} cleaned from DB")
+    return jsonify({
+        "status": "done",
+        "total": len(subs),
+        "sent": sent_count,
+        "failed": fail_count,
+        "cleaned": cleaned_count
+    }), 200
+
+
+def send_upcoming_deadline_notifications():
+    """Query assignments due in the next 24 hours and notify active subscribers."""
+    from pywebpush import webpush, WebPushException
+    import json
+    
+    logger.info("Checking for upcoming deadlines due in next 24 hours...")
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Query assignments due in the next 24 hours that are pending and not yet notified
+                cur.execute(
+                    """
+                    SELECT id, title, subject, due_date
+                    FROM assignments
+                    WHERE NOT is_completed
+                      AND NOT deadline_notified
+                      AND due_date IS NOT NULL
+                      AND due_date >= CURRENT_DATE
+                      AND due_date <= CURRENT_DATE + INTERVAL '1 day'
+                    """
+                )
+                tasks = [dict(r) for r in cur.fetchall()]
+                
+                if not tasks:
+                    return
+                    
+                cur.execute("SELECT * FROM push_subscriptions")
+                subs = [dict(r) for r in cur.fetchall()]
+                
+        if not subs:
+            logger.info("No active push subscriptions to notify.")
+            return
+            
+        logger.info(f"Found {len(tasks)} tasks due soon. Notifying {len(subs)} subscribers...")
+        
+        for task in tasks:
+            payload = json.dumps({
+                "title": f"Deadline Approaching: {task['subject']} ⏳",
+                "body": f"'{task['title']}' is due on {task['due_date']}!",
+                "url": f"/#card-{task['id']}",
+                "tag": f"cf-deadline-{task['id']}"
+            })
+            
+            for sub in subs:
+                try:
+                    webpush(
+                        subscription_info={
+                            "endpoint": sub["endpoint"],
+                            "keys": {
+                                "p256dh": sub["p256dh"],
+                                "auth": sub["auth"]
+                            }
+                        },
+                        data=payload,
+                        vapid_private_key=VAPID_KEY_PATH,
+                        vapid_claims={"sub": "mailto:classflow-admin@example.com"}
+                    )
+                except WebPushException as ex:
+                    logger.warning(f"Push notification failed for {sub['endpoint'][:40]}: {ex}")
+                    if ex.response is not None and ex.response.status_code in (404, 410):
+                        try:
+                            with get_conn() as conn:
+                                with conn.cursor() as cur:
+                                    cur.execute("DELETE FROM push_subscriptions WHERE id = %s", (sub["id"],))
+                                conn.commit()
+                        except Exception as db_ex:
+                            logger.error(f"Failed to delete dead subscription {sub['id']}: {db_ex}")
+                            
+            # Mark task as notified
+            try:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE assignments SET deadline_notified = TRUE WHERE id = %s",
+                            (task["id"],)
+                        )
+                    conn.commit()
+            except Exception as db_ex:
+                logger.error(f"Failed to mark task {task['id']} as notified: {db_ex}")
+                
+    except Exception as e:
+        logger.error(f"Deadline notification sender error: {e}", exc_info=True)
+
+
+def start_deadline_scheduler():
+    """Launch background thread to periodically check for upcoming deadlines."""
+    import threading
+    import time
+    
+    def run_scheduler():
+        time.sleep(10)
+        logger.info("Starting upcoming deadlines background scheduler thread...")
+        while True:
+            try:
+                send_upcoming_deadline_notifications()
+            except Exception as e:
+                logger.error(f"Scheduler exception: {e}")
+            time.sleep(3600)
+            
+    thread = threading.Thread(target=run_scheduler, daemon=True)
+    thread.start()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -838,6 +1119,9 @@ if __name__ == "__main__":
     except Exception as exc:
         logger.critical(f"Failed to initialise database: {exc}", exc_info=True)
         raise SystemExit(1) from exc
+
+    # Start deadline notification background scheduler
+    start_deadline_scheduler()
 
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     port  = int(os.getenv("PORT", "5001"))

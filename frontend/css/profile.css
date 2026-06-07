@@ -121,3 +121,55 @@
 .pd-menu-item .material-icons-round { font-size: 20px; }
 
 .pd-divider { height: 1px; background: var(--outline); margin: 4px 8px; }
+
+/* ── Switch Toggle ── */
+.switch-toggle {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--outline);
+    transition: .25s var(--ease);
+    border-radius: 20px;
+}
+
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--surface);
+    transition: .25s var(--ease);
+    border-radius: 50%;
+    box-shadow: var(--sh-sm);
+}
+
+.switch-toggle input:checked + .switch-slider {
+    background-color: var(--primary);
+}
+
+.switch-toggle input:checked + .switch-slider:before {
+    transform: translateX(18px);
+    background-color: var(--on-primary);
+}
+
+.switch-toggle input:disabled + .switch-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+

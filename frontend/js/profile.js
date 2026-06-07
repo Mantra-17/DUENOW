@@ -24,6 +24,11 @@ function openProfile() {
     const theme = document.body.dataset.theme;
     setText('pd-theme-lbl', theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
 
+    // Update Push subscription toggle checkbox state
+    if (window.checkPushSubscriptionState) {
+        window.checkPushSubscriptionState();
+    }
+
     id('profile-drop').classList.add('open');
     // Close on outside click
     setTimeout(() => document.addEventListener('click', outsideProfileClick), 0);

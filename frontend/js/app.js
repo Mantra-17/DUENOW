@@ -327,5 +327,11 @@ window.triggerPwaInstall = async function() {
     initTheme();
     initAvatar();
     initInstallPrompt();
+    if (window.checkPwaPushPrompt) {
+        window.checkPwaPushPrompt();
+    }
     await refreshAll();
+    if (window.checkPushSubscriptionState) {
+        await window.checkPushSubscriptionState();
+    }
 })();

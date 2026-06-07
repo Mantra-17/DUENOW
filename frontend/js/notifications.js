@@ -283,3 +283,213 @@ function timeAgo(ts) {
     if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
     return `${Math.floor(sec/86400)}d ago`;
 }
+
+/* ════════════════════════════════════════════
+   WEB PUSH SYSTEM (VAPID)
+   ════════════════════════════════════════════ */
+
+// Helper to convert base64 URL safe string to Uint8Array for PushManager
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+    
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// Check notification state and update UI
+async function checkPushSubscriptionState() {
+    const toggle = id('push-notif-toggle');
+    if (!toggle) return;
+    
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        // Push notifications not supported
+        toggle.disabled = true;
+        id('push-notif-lbl').textContent = 'Push Alerts (Not Supported)';
+        return;
+    }
+    
+    if (Notification.permission === 'denied') {
+        toggle.checked = false;
+        toggle.disabled = true;
+        id('push-notif-lbl').textContent = 'Push Alerts (Blocked)';
+        return;
+    }
+    
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        toggle.checked = !!sub;
+        id('push-notif-lbl').textContent = sub ? 'Deadline Push Alerts (Active)' : 'Enable Deadline Push Alerts';
+    } catch (err) {
+        console.error('Failed to check push subscription:', err);
+    }
+}
+
+// Toggle subscription from UI
+async function togglePushSubscription(isChecked) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    
+    const toggle = id('push-notif-toggle');
+    if (toggle) toggle.disabled = true;
+    
+    try {
+        if (isChecked) {
+            // Request permission
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                toast('Notification permission denied', true);
+                if (toggle) {
+                    toggle.checked = false;
+                    toggle.disabled = Notification.permission === 'denied';
+                }
+                return;
+            }
+            
+            // Subscribe
+            await subscribeUserToPush();
+        } else {
+            // Unsubscribe
+            await unsubscribeUserFromPush();
+        }
+    } catch (err) {
+        console.error('Error toggling push subscription:', err);
+        toast('Failed to update push subscription', true);
+        if (toggle) {
+            toggle.checked = !isChecked; // revert
+        }
+    } finally {
+        if (toggle) toggle.disabled = false;
+        await checkPushSubscriptionState();
+    }
+}
+
+// Subscribe user to Web Push
+async function subscribeUserToPush() {
+    const reg = await navigator.serviceWorker.ready;
+    
+    // Fetch VAPID public key
+    const { public_key } = await api('/notifications/vapid-key');
+    const applicationServerKey = urlBase64ToUint8Array(public_key);
+    
+    // Subscribe using PushManager
+    const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey
+    });
+    
+    // Send subscription object to Flask backend
+    const rawSub = JSON.parse(JSON.stringify(subscription));
+    await api('/notifications/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ subscription: rawSub })
+    });
+    
+    toast('Push notifications activated! 🔔');
+}
+
+// Unsubscribe user from Web Push
+async function unsubscribeUserFromPush() {
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.getSubscription();
+    if (subscription) {
+        const endpoint = subscription.endpoint;
+        // Unsubscribe locally
+        await subscription.unsubscribe();
+        
+        // Remove from database
+        await api('/notifications/unsubscribe', {
+            method: 'POST',
+            body: JSON.stringify({ endpoint: endpoint })
+        });
+        
+        toast('Push notifications deactivated');
+    }
+}
+
+// Ask user to subscribe if they haven't seen it recently
+function checkPwaPushPrompt() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (Notification.permission !== 'default') return;
+    
+    const lastPrompt = localStorage.getItem('cf-push-prompt-time');
+    if (lastPrompt) {
+        const days = (Date.now() - parseInt(lastPrompt, 10)) / (1000 * 60 * 60 * 24);
+        if (days < 5) return; // Prompt every 5 days
+    }
+    
+    // Show premium modal prompt after 15 seconds
+    setTimeout(showPushPromptBanner, 15000);
+}
+
+function showPushPromptBanner() {
+    // Only show if prompt is still default
+    if (Notification.permission !== 'default') return;
+    
+    let banner = id('push-prompt-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'push-prompt-banner';
+        banner.className = 'pwa-banner'; // reuse install banner styling
+        banner.innerHTML = `
+            <div class="pwa-banner-icon" style="background:var(--success)">
+                <span class="material-icons-round">notifications_active</span>
+            </div>
+            <div class="pwa-banner-content">
+                <div class="pwa-banner-title">Enable Push Notifications</div>
+                <div class="pwa-banner-desc">Get instant notifications for upcoming class deadlines and practical exams.</div>
+            </div>
+            <div class="pwa-banner-actions">
+                <button class="btn btn-ghost" onclick="dismissPushPrompt()">Later</button>
+                <button class="btn btn-fill" style="background:var(--success)" onclick="allowPushPrompt()">Allow</button>
+            </div>
+        `;
+        document.body.appendChild(banner);
+        
+        // Offset if install banner is already visible
+        const installBanner = id('pwa-install-banner');
+        if (installBanner && installBanner.classList.contains('show')) {
+            banner.style.bottom = '100px';
+        }
+    }
+    
+    banner.offsetWidth;
+    banner.classList.add('show');
+}
+
+window.dismissPushPrompt = function() {
+    const banner = id('push-prompt-banner');
+    if (banner) banner.classList.remove('show');
+    localStorage.setItem('cf-push-prompt-time', Date.now().toString());
+};
+
+window.allowPushPrompt = async function() {
+    const banner = id('push-prompt-banner');
+    if (banner) banner.classList.remove('show');
+    localStorage.setItem('cf-push-prompt-time', Date.now().toString());
+    
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            await subscribeUserToPush();
+            await checkPushSubscriptionState();
+        } else {
+            toast('Notifications permission denied', true);
+        }
+    } catch (err) {
+        console.error('Failed to subscribe from prompt:', err);
+    }
+};
+
+// Bind to window for HTML click triggers
+window.togglePushSubscription = togglePushSubscription;
+window.checkPushSubscriptionState = checkPushSubscriptionState;
+window.checkPwaPushPrompt = checkPwaPushPrompt;
+

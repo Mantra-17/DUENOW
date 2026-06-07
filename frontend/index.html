@@ -149,6 +149,16 @@
                         <span class="material-icons-round">sync</span>
                         Sync Now
                     </button>
+                    <div class="pd-menu-item" style="cursor:default;display:flex;justify-content:space-between;align-items:center;width:100%">
+                        <div style="display:flex;align-items:center;gap:12px">
+                            <span class="material-icons-round" style="color:var(--on-surface-var)">notifications</span>
+                            <span id="push-notif-lbl" style="font-size:.875rem">Enable Push Alerts</span>
+                        </div>
+                        <label class="switch-toggle" style="margin-left:auto" aria-label="Toggle push notifications">
+                            <input type="checkbox" id="push-notif-toggle" onchange="togglePushSubscription(this.checked)">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
                     <div class="pd-divider"></div>
                     <button class="pd-menu-item" onclick="show('subjects');closeProfile()">
                         <span class="material-icons-round">menu_book</span>
