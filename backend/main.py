@@ -148,7 +148,7 @@ def parse_due_date(due: dict | None) -> date | None:
         return None
 
 
-def sync_to_db(assignments: list[dict], course_name: str) -> tuple[int, int]:
+def sync_to_db(assignments: list[dict], course_name: str, user_id: str) -> tuple[int, int]:
     """
     Phase 1 — fast sync: store ALL new assignments immediately with placeholder data.
     Phase 2 — AI analysis runs separately via run_ai_batch_analysis() after sync.
@@ -165,11 +165,13 @@ def sync_to_db(assignments: list[dict], course_name: str) -> tuple[int, int]:
             logger.warning(f"  Skipping item with no id: {item}")
             continue
 
+        unique_id = f"{user_id}:{assignment_id}"
+
         try:
             with get_conn() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT id FROM assignments WHERE id = %s", (assignment_id,)
+                        "SELECT id FROM assignments WHERE id = %s AND user_id = %s", (unique_id, user_id)
                     )
                     if cur.fetchone() is not None:
                         logger.debug(f'  Already stored: "{title}"')
@@ -184,14 +186,15 @@ def sync_to_db(assignments: list[dict], course_name: str) -> tuple[int, int]:
                     cur.execute(
                         """
                         INSERT INTO assignments
-                            (id, subject, title, due_date,
+                            (id, user_id, subject, title, due_date,
                              summary, difficulty, estimated_minutes,
                              classification, model_used, ai_success)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         (
-                            assignment_id,
+                            unique_id,
+                            user_id,
                             course_name,
                             title,
                             due_date,
@@ -269,62 +272,63 @@ MOCK_COURSES = [
 ]
 
 
-def run_mock_sync() -> None:
-    logger.warning("⚠️  credentials.json not found — running in MOCK sync mode.")
+def run_mock_sync(user_id: str) -> None:
+    logger.info(f"Running in MOCK sync mode for user {user_id}.")
     total_new = 0
     for course in MOCK_COURSES:
         name  = course["name"]
         items = course["courseWork"]
-        logger.info(f"─── {name} (MOCK: {len(items)} items)")
-        new, _ = sync_to_db(items, name)
+        logger.info(f"  ─── {name} (MOCK: {len(items)} items)")
+        new, _ = sync_to_db(items, name, user_id)
         total_new += new
-    logger.info(f"Mock sync complete — {total_new} new tasks stored.")
+    logger.info(f"Mock sync complete for user {user_id} — {total_new} new tasks stored.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Classroom fetch
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_classroom_sync() -> None:
-    """Fetch all active courses and their courseWork from Google Classroom."""
-    logger.info("Fetching course list from Google Classroom …")
+def run_classroom_sync(user_id: str, access_token: str) -> None:
+    """Fetch all active courses and their courseWork from Google Classroom using user access token."""
+    logger.info(f"Fetching course list from Google Classroom for user {user_id} …")
 
     try:
-        service = get_classroom_service()
+        creds = Credentials(token=access_token)
+        service = build("classroom", "v1", credentials=creds)
     except Exception as e:
-        logger.error(f"Could not get Classroom service: {e}", exc_info=True)
+        logger.error(f"  ❌ Could not build Classroom service for user {user_id}: {e}", exc_info=True)
         return
 
     try:
         results = service.courses().list(pageSize=50).execute()
         courses = results.get("courses", [])
     except Exception as e:
-        logger.error(f"Failed to list courses: {e}", exc_info=True)
+        logger.error(f"  ❌ Failed to list courses for user {user_id}: {e}", exc_info=True)
         return
 
     active_courses = [
         c for c in courses
         if c.get("courseState") in ("ACTIVE", "PROVISIONED")
     ]
-    logger.info(f"Found {len(active_courses)}/{len(courses)} active course(s).")
+    logger.info(f"  Found {len(active_courses)}/{len(courses)} active course(s) for user {user_id}.")
 
     total_new = 0
     for course in active_courses:
         name = course.get("name", "Unknown")
         cid  = course.get("id", "")
-        logger.info(f"─── {name} (id={cid})")
+        logger.info(f"  ─── {name} (id={cid})")
 
         try:
             work  = service.courses().courseWork().list(courseId=cid).execute()
             items = work.get("courseWork", [])
-            logger.info(f"  Found {len(items)} courseWork item(s).")
+            logger.info(f"    Found {len(items)} courseWork item(s).")
             if items:
-                new, _ = sync_to_db(items, name)
+                new, _ = sync_to_db(items, name, user_id)
                 total_new += new
         except Exception as e:
             logger.error(f'  ❌ Could not fetch work for "{name}": {e}', exc_info=True)
 
-    logger.info(f"Classroom sync complete — {total_new} new tasks stored.")
+    logger.info(f"  Classroom sync complete for user {user_id} — {total_new} new tasks stored.")
 
 
 def run_ai_batch_analysis(delay_seconds: float = 6.0) -> None:
@@ -393,23 +397,48 @@ def run_ai_batch_analysis(delay_seconds: float = 6.0) -> None:
 
 def get_assignments() -> None:
     """
-    Phase 1: Sync all data from Classroom (fast — no AI blocking).
-    Phase 2: AI-analyze all pending tasks at a paced rate (6s apart).
+    Loop through all registered users in the database.
+    Phase 1: Sync all data from Classroom or mock for each user.
+    Phase 2: AI-analyze all pending tasks globally.
     """
-    def _is_real_file(path: str) -> bool:
-        """Returns True only if path is an actual non-empty file (not a directory)."""
-        return os.path.isfile(path) and os.path.getsize(path) > 0
+    from auth import refresh_user_token
 
-    has_credentials = _is_real_file(CREDENTIALS_PATH) or _is_real_file(TOKEN_PATH)
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, name FROM users")
+                users = cur.fetchall()
+    except Exception as e:
+        logger.error(f"Failed to fetch users for sync cycle: {e}")
+        return
 
-    # Phase 1: Sync all data from Classroom (or mock)
-    if has_credentials:
-        run_classroom_sync()
-    else:
-        run_mock_sync()
+    if not users:
+        logger.info("No registered users found in database. Skipping sync cycle.")
+        return
 
-    # Phase 2: AI-analyze all tasks that are pending (ai_success=False)
-    # Runs at 6s/task to stay within free-tier limits (~10 RPM)
+    logger.info(f"Starting sync cycle for {len(users)} registered user(s)...")
+
+    for user_id, name in users:
+        if _shutdown:
+            break
+        
+        logger.info(f"Syncing data for user: {name} (id={user_id})")
+        if user_id.startswith("mock-"):
+            try:
+                run_mock_sync(user_id)
+            except Exception as e:
+                logger.error(f"Failed mock sync for user {name} ({user_id}): {e}", exc_info=True)
+        else:
+            try:
+                token = refresh_user_token(user_id)
+                if token:
+                    run_classroom_sync(user_id, token)
+                else:
+                    logger.error(f"Could not refresh access token for Google user {name} ({user_id}). Sync skipped.")
+            except Exception as e:
+                logger.error(f"Failed Google Classroom sync for user {name} ({user_id}): {e}", exc_info=True)
+
+    # Phase 2: AI-analyze all tasks globally that are pending (ai_success=False)
     if os.getenv("GEMINI_API_KEY"):
         run_ai_batch_analysis(delay_seconds=6.0)
     else:

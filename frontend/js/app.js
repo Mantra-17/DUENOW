@@ -325,7 +325,13 @@ window.triggerPwaInstall = async function() {
 
 (async function init() {
     initTheme();
-    initAvatar();
+    
+    // Check session authentication status first
+    const loggedIn = await checkAuth();
+    if (!loggedIn) {
+        return; // Bypasses data loading if not logged in
+    }
+
     initInstallPrompt();
     if (window.checkPwaPushPrompt) {
         window.checkPwaPushPrompt();

@@ -78,9 +78,23 @@ def get_conn() -> Generator[psycopg2.extensions.connection, None, None]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 SCHEMA_SQL = """
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+    id                   TEXT PRIMARY KEY,  -- Google User ID
+    email                TEXT UNIQUE NOT NULL,
+    name                 TEXT NOT NULL,
+    picture              TEXT,
+    google_refresh_token TEXT NOT NULL,
+    google_access_token  TEXT NOT NULL,
+    google_token_expiry  TIMESTAMPTZ NOT NULL,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Main assignments table
 CREATE TABLE IF NOT EXISTS assignments (
     id                TEXT PRIMARY KEY,
+    user_id           TEXT REFERENCES users(id) ON DELETE CASCADE,
     subject           TEXT        NOT NULL,
     title             TEXT        NOT NULL,
     due_date          DATE,
@@ -140,6 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_assignments_subject_completed
 -- Push subscriptions table
 CREATE TABLE IF NOT EXISTS push_subscriptions (
     id                SERIAL PRIMARY KEY,
+    user_id           TEXT REFERENCES users(id) ON DELETE CASCADE,
     endpoint          TEXT        NOT NULL UNIQUE,
     p256dh            TEXT        NOT NULL,
     auth              TEXT        NOT NULL,
@@ -155,7 +170,23 @@ MIGRATION_SQL = [
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS deadline_notified BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id                   TEXT PRIMARY KEY,
+        email                TEXT UNIQUE NOT NULL,
+        name                 TEXT NOT NULL,
+        picture              TEXT,
+        google_refresh_token TEXT NOT NULL,
+        google_access_token  TEXT NOT NULL,
+        google_token_expiry  TIMESTAMPTZ NOT NULL,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """,
+    "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
+    "ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
 ]
+
 
 
 def init_db() -> None:

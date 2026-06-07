@@ -42,12 +42,21 @@ import os, sys
 # Allow importing sibling backend modules when run from project root
 sys.path.insert(0, os.path.dirname(__file__))
 
-from flask import Flask, jsonify, request, Response, send_from_directory, make_response
+from flask import Flask, jsonify, request, Response, send_from_directory, make_response, g, redirect
 from flask_cors import CORS
 from psycopg2.extras import RealDictCursor
 
 from db import get_conn, init_db, check_db_health
 from ai_helper import analyze_assignment
+from auth import (
+    verify_session_token,
+    generate_session_token,
+    get_auth_url,
+    handle_oauth_callback,
+    login_mock_user,
+    is_google_configured
+)
+
 
 
 # App setup — static files served from ../frontend/
@@ -149,38 +158,234 @@ def _validate_subject(subject: str) -> str | None:
 OPEN_PATHS = {"/", "/health"}
 
 @app.before_request
-def check_api_key() -> Response | None:
+def check_authentication() -> Response | None:
     """
-    Require X-API-KEY header for all protected endpoints.
-    If MY_API_KEY is not configured in .env, auth is STILL enforced with a
-    warning — we never silently open the API.
+    Validate request authentication.
+    Supports JWT Bearer token authentication for users,
+    and fallback X-API-KEY header authentication for admin compatibility.
     """
     # Always allow preflight OPTIONS requests without auth
     if request.method == 'OPTIONS':
         return None
 
-    # Always allow static files and health check without auth
+    # Always allow static files, health check, auth endpoints, and push public key
     if request.path in OPEN_PATHS or request.path.startswith('/static') \
             or request.path.startswith('/css') or request.path.startswith('/js') \
             or request.path.startswith('/fonts') or request.path.startswith('/icons') \
-            or request.path in ('/favicon.ico', '/manifest.json', '/sw.js', '/notifications/vapid-key'):
+            or request.path in ('/favicon.ico', '/manifest.json', '/sw.js', '/notifications/vapid-key') \
+            or request.path.startswith('/auth/'):
         return None
 
-    if not API_KEY:
-        # No key configured — log a loud warning but allow through
-        # (dev convenience, never do this in production)
-        logger.warning(
-            "⚠️  MY_API_KEY is not set — API is unprotected! "
-            "Set MY_API_KEY in your .env file for production."
-        )
-        return None
+    # 1. Bearer Token Session Validation
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        user_id = verify_session_token(token)
+        if user_id:
+            g.user_id = user_id
+            return None
+        return _err("Session expired or invalid.", "UNAUTHORIZED", 401)
 
+    # 2. Classic X-API-KEY Fallback (for CLI/scripts)
     client_key = request.headers.get("X-API-KEY", "")
-    if client_key != API_KEY:
-        logger.warning(f"Unauthorized request to {request.method} {request.path}")
-        return _err("Unauthorized. Provide a valid X-API-KEY header.", "UNAUTHORIZED", 401)
+    if API_KEY and client_key == API_KEY:
+        g.user_id = "admin"  # Map admin key requests to fallback admin user scope
+        return None
 
-    return None
+    return _err("Unauthorized. Provide a valid Authorization Bearer token.", "UNAUTHORIZED", 401)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Authentication Controllers (Google OAuth & Mock Sign-In)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/auth/login", methods=["GET"])
+def auth_login() -> Response:
+    """Redirect user to either Google Consent Screen or Mock Login."""
+    import urllib.parse
+    
+    # Capture requested redirect URL (essential for Capacitor mobile redirects)
+    redirect_url = request.args.get("redirect_url", "") or request.referrer or request.root_url
+    # Avoid infinite redirect loops if redirect_url is this exact endpoint
+    if redirect_url.endswith("/auth/login") or redirect_url.endswith("/auth/login/"):
+        redirect_url = request.root_url
+
+    if not is_google_configured():
+        base_url = request.root_url.rstrip('/')
+        return redirect(f"{base_url}/auth/mock-select?redirect_url={urllib.parse.quote(redirect_url)}")
+        
+    return redirect(get_auth_url(state=redirect_url))
+
+
+@app.route("/auth/callback", methods=["GET"])
+def auth_callback() -> Response:
+    """Handle Google OAuth redirect callback and exchange authorization code."""
+    code = request.args.get("code")
+    state = request.args.get("state", "")
+    
+    if not code:
+        return _err("Authorization code missing.", "INVALID_CALLBACK", 400)
+
+    profile = handle_oauth_callback(code)
+    if not profile:
+        return _err("Google authentication failed.", "AUTH_FAILED", 400)
+
+    # Generate persistent session token
+    token = generate_session_token(profile["id"])
+    
+    # Redirect back to original client page (PWA web or local Capacitor webview)
+    redirect_target = state or request.root_url
+    if "?" in redirect_target:
+        return redirect(f"{redirect_target.rstrip('/')}&token={token}")
+    else:
+        sep = "" if redirect_target.endswith("/") else "/"
+        return redirect(f"{redirect_target}{sep}?token={token}")
+
+
+@app.route("/auth/mock-select", methods=["GET"])
+def auth_mock_select() -> str:
+    """Serve visual mock account login selector page for development."""
+    import urllib.parse
+    redirect_url = request.args.get("redirect_url", "") or request.root_url
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>ClassFlow Mock Login</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: #0f172a;
+                color: #e2e8f0;
+                font-family: 'Outfit', sans-serif;
+            }}
+            .card {{
+                background: rgba(30, 41, 59, 0.7);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(16px);
+                border-radius: 24px;
+                padding: 40px;
+                max-width: 400px;
+                width: 90%;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+                text-align: center;
+            }}
+            h2 {{
+                font-size: 28px;
+                margin-bottom: 8px;
+                background: linear-gradient(135deg, #38bdf8, #818cf8);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }}
+            p {{
+                color: #94a3b8;
+                font-size: 14px;
+                margin-bottom: 30px;
+                line-height: 1.5;
+            }}
+            .btn {{
+                display: block;
+                width: 100%;
+                padding: 14px;
+                margin-bottom: 16px;
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                color: #f1f5f9;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            }}
+            .btn:hover {{
+                background: linear-gradient(135deg, #38bdf8, #818cf8);
+                border-color: transparent;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>Select Mock Account</h2>
+            <p>Google Client credentials are not configured.<br>Select a mock account to test multi-user dashboard segregation.</p>
+            
+            <button class="btn" onclick="login('mock-mantra', 'mantra@charusat.edu.in', 'Mantra Patel')">
+                Sign in as Mantra Patel (Student A)
+            </button>
+            
+            <button class="btn" onclick="login('mock-friend', 'friend@charusat.edu.in', 'Siddharth Shah')">
+                Sign in as Siddharth Shah (Student B)
+            </button>
+        </div>
+        <script>
+            function login(id, email, name) {{
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/auth/mock-login';
+                
+                const inputs = {{ id, email, name, redirect_url: {repr(redirect_url)} }};
+                for (const key in inputs) {{
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = inputs[key];
+                    form.appendChild(input);
+                }}
+                
+                document.body.appendChild(form);
+                form.submit();
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    return html
+
+
+@app.route("/auth/mock-login", methods=["POST"])
+def auth_mock_login() -> Response:
+    """Authenticate a mock developer account and redirect back to PWA."""
+    user_id = request.form.get("id")
+    email = request.form.get("email")
+    name = request.form.get("name")
+    redirect_url = request.form.get("redirect_url") or request.root_url
+    
+    if not user_id or not email or not name:
+        return _err("Missing required mock credentials.", "INVALID_INPUT", 400)
+        
+    token = login_mock_user(user_id, email, name)
+    
+    if "?" in redirect_url:
+        return redirect(f"{redirect_url.rstrip('/')}&token={token}")
+    else:
+        sep = "" if redirect_url.endswith("/") else "/"
+        return redirect(f"{redirect_url}{sep}?token={token}")
+
+
+@app.route("/auth/me", methods=["GET"])
+def auth_me() -> tuple[Response, int]:
+    """Retrieve logged-in user profile details."""
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT id, email, name, picture FROM users WHERE id = %s", (g.user_id,))
+                row = cur.fetchone()
+        if not row:
+            return _err("User profile not found.", "NOT_FOUND", 404)
+        return jsonify({"user": dict(row)}), 200
+    except Exception as e:
+        logger.error(f"GET /auth/me failed: {e}", exc_info=True)
+        return _err("Database query failed.", "DB_ERROR", 500)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -237,8 +442,8 @@ def get_tasks() -> tuple[Response, int]:
     except ValueError:
         limit = 100
 
-    query = "SELECT * FROM assignments WHERE TRUE"
-    params: list[Any] = []
+    query = "SELECT * FROM assignments WHERE user_id = %s"
+    params: list[Any] = [g.user_id]
 
     if subject:
         query += " AND LOWER(subject) = LOWER(%s)"
@@ -321,18 +526,18 @@ def create_task() -> tuple[Response, int]:
     # Generate a stable ID from content
     import hashlib
     task_id = "manual-" + hashlib.sha256(
-        f"{subject}:{title}".encode()
+        f"{g.user_id}:{subject}:{title}".encode()
     ).hexdigest()[:16]
 
     # AI analysis
-    logger.info(f"POST /tasks — analysing: '{title}' [{subject}]")
+    logger.info(f"POST /tasks — analysing: '{title}' [{subject}] for user {g.user_id}")
     ai = analyze_assignment(title, subject)
 
     try:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 # Check for duplicate
-                cur.execute("SELECT id FROM assignments WHERE id = %s", (task_id,))
+                cur.execute("SELECT id FROM assignments WHERE id = %s AND user_id = %s", (task_id, g.user_id))
                 if cur.fetchone():
                     return _err(
                         "A task with this title and subject already exists.",
@@ -343,13 +548,14 @@ def create_task() -> tuple[Response, int]:
                 cur.execute(
                     """
                     INSERT INTO assignments
-                        (id, subject, title, due_date, summary, difficulty,
+                        (id, user_id, subject, title, due_date, summary, difficulty,
                          estimated_minutes, classification, model_used, ai_success)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING *
                     """,
                     (
                         task_id,
+                        g.user_id,
                         subject,
                         title,
                         due_date,
@@ -383,7 +589,7 @@ def get_task(task_id: str) -> tuple[Response, int]:
     try:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM assignments WHERE id = %s", (task_id,))
+                cur.execute("SELECT * FROM assignments WHERE id = %s AND user_id = %s", (task_id, g.user_id))
                 row = cur.fetchone()
 
         if row is None:
@@ -470,13 +676,13 @@ def update_task(task_id: str) -> tuple[Response, int]:
 
     # Build dynamic SET clause safely
     set_clause = ", ".join(f"{col} = %s" for col in updates)
-    values = list(updates.values()) + [task_id]
+    values = list(updates.values()) + [task_id, g.user_id]
 
     try:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    f"UPDATE assignments SET {set_clause} WHERE id = %s RETURNING *",
+                    f"UPDATE assignments SET {set_clause} WHERE id = %s AND user_id = %s RETURNING *",
                     values,
                 )
                 row = cur.fetchone()
@@ -504,7 +710,7 @@ def delete_task(task_id: str) -> tuple[Response, int]:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM assignments WHERE id = %s RETURNING id", (task_id,)
+                    "DELETE FROM assignments WHERE id = %s AND user_id = %s RETURNING id", (task_id, g.user_id)
                 )
                 deleted = cur.fetchone()
                 if not deleted:
@@ -541,8 +747,8 @@ def _set_completed(task_id: str, completed: bool) -> tuple[Response, int]:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "UPDATE assignments SET is_completed = %s WHERE id = %s RETURNING *",
-                    (completed, task_id),
+                    "UPDATE assignments SET is_completed = %s WHERE id = %s AND user_id = %s RETURNING *",
+                    (completed, task_id, g.user_id),
                 )
                 row = cur.fetchone()
                 if row is None:
@@ -579,9 +785,11 @@ def get_subjects() -> tuple[Response, int]:
                         COUNT(*) FILTER (WHERE NOT is_completed) AS pending,
                         COUNT(*) FILTER (WHERE is_completed)     AS completed
                     FROM assignments
+                    WHERE user_id = %s
                     GROUP BY subject
                     ORDER BY subject ASC
-                    """
+                    """,
+                    (g.user_id,)
                 )
                 rows = cur.fetchall()
 
@@ -637,7 +845,9 @@ def get_stats() -> tuple[Response, int]:
                             AVG(CASE WHEN ai_success THEN 1.0 ELSE 0.0 END)::NUMERIC, 2
                         )                                                 AS ai_success_rate
                     FROM assignments
-                    """
+                    WHERE user_id = %s
+                    """,
+                    (g.user_id,)
                 )
                 summary = dict(cur.fetchone())
 
@@ -646,10 +856,11 @@ def get_stats() -> tuple[Response, int]:
                     """
                     SELECT classification, COUNT(*) AS count
                     FROM assignments
-                    WHERE classification IS NOT NULL
+                    WHERE classification IS NOT NULL AND user_id = %s
                     GROUP BY classification
                     ORDER BY count DESC
-                    """
+                    """,
+                    (g.user_id,)
                 )
                 by_class = {r["classification"]: r["count"] for r in cur.fetchall()}
 
@@ -658,9 +869,11 @@ def get_stats() -> tuple[Response, int]:
                     """
                     SELECT subject, COUNT(*) AS count
                     FROM assignments
+                    WHERE user_id = %s
                     GROUP BY subject
                     ORDER BY count DESC
-                    """
+                    """,
+                    (g.user_id,)
                 )
                 by_subject = {r["subject"]: r["count"] for r in cur.fetchall()}
 
@@ -691,7 +904,7 @@ def reanalyze_task(task_id: str) -> tuple[Response, int]:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT id, title, subject FROM assignments WHERE id = %s", (task_id,)
+                    "SELECT id, title, subject FROM assignments WHERE id = %s AND user_id = %s", (task_id, g.user_id)
                 )
                 row = cur.fetchone()
 
@@ -705,7 +918,7 @@ def reanalyze_task(task_id: str) -> tuple[Response, int]:
         logger.error(f"POST /tasks/{task_id}/reanalyze — fetch failed: {e}", exc_info=True)
         return _err("Internal server error.", "DB_ERROR", 500)
 
-    logger.info(f"POST /tasks/{task_id}/reanalyze — re-analysing: '{title}'")
+    logger.info(f"POST /tasks/{task_id}/reanalyze — re-analysing: '{title}' for user {g.user_id}")
     ai = analyze_assignment(title, subject)
 
     try:
@@ -720,7 +933,7 @@ def reanalyze_task(task_id: str) -> tuple[Response, int]:
                         classification = %s,
                         model_used = %s,
                         ai_success = %s
-                    WHERE id = %s
+                    WHERE id = %s AND user_id = %s
                     RETURNING *
                     """,
                     (
@@ -731,6 +944,7 @@ def reanalyze_task(task_id: str) -> tuple[Response, int]:
                         ai.get("model_used", "fallback"),
                         ai.get("ai_success", False),
                         task_id,
+                        g.user_id,
                     ),
                 )
                 updated = cur.fetchone()
@@ -760,13 +974,14 @@ def reanalyze_all_tasks() -> tuple[Response, int]:
     import time as _time
 
     force = request.args.get("force", "false").lower() == "true"
-    filter_clause = "" if force else "WHERE ai_success = FALSE"
+    filter_clause = "WHERE user_id = %s" if force else "WHERE user_id = %s AND ai_success = FALSE"
 
     try:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    f"SELECT id, title, subject FROM assignments {filter_clause} ORDER BY due_date ASC NULLS LAST"
+                    f"SELECT id, title, subject FROM assignments {filter_clause} ORDER BY due_date ASC NULLS LAST",
+                    (g.user_id,)
                 )
                 tasks = [dict(r) for r in cur.fetchall()]
     except Exception as e:
@@ -780,7 +995,7 @@ def reanalyze_all_tasks() -> tuple[Response, int]:
             "updated": 0, "failed": 0,
         }), 200
 
-    logger.info(f"POST /admin/reanalyze-all — {len(tasks)} tasks (force={force})")
+    logger.info(f"POST /admin/reanalyze-all — {len(tasks)} tasks (force={force}) for user {g.user_id}")
 
     results = []
     updated = failed = 0
@@ -797,10 +1012,10 @@ def reanalyze_all_tasks() -> tuple[Response, int]:
                             UPDATE assignments
                             SET summary=%s, difficulty=%s, estimated_minutes=%s,
                                 classification=%s, model_used=%s, ai_success=TRUE
-                            WHERE id=%s
+                            WHERE id=%s AND user_id=%s
                             """,
                             (ai["summary"], ai["difficulty"], ai["estimated_minutes"],
-                             ai["classification"], ai["model_used"], task["id"]),
+                             ai["classification"], ai["model_used"], task["id"], g.user_id),
                         )
                     conn.commit()
                 updated += 1
@@ -887,18 +1102,18 @@ def subscribe() -> tuple[Response, int]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO push_subscriptions (endpoint, p256dh, auth)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT (endpoint) DO UPDATE
-                    SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
+                    SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
                     RETURNING id
                     """,
-                    (endpoint, p256dh, auth)
+                    (g.user_id, endpoint, p256dh, auth)
                 )
                 sub_id = cur.fetchone()[0]
             conn.commit()
             
-        logger.info(f"Registered push subscription: id={sub_id}, endpoint={endpoint[:50]}...")
+        logger.info(f"Registered push subscription for user {g.user_id}: id={sub_id}, endpoint={endpoint[:50]}...")
         return jsonify({"status": "success", "id": sub_id}), 200
         
     except Exception as e:
@@ -912,15 +1127,15 @@ def unsubscribe() -> tuple[Response, int]:
     body = request.get_json(silent=True)
     if not body or "endpoint" not in body:
         return _err("Request body must contain 'endpoint'.", "INVALID_BODY")
-        
+    
     endpoint = body["endpoint"]
     
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM push_subscriptions WHERE endpoint = %s RETURNING id",
-                    (endpoint,)
+                    "DELETE FROM push_subscriptions WHERE endpoint = %s AND user_id = %s RETURNING id",
+                    (endpoint, g.user_id)
                 )
                 deleted = cur.fetchone()
             conn.commit()
@@ -928,7 +1143,7 @@ def unsubscribe() -> tuple[Response, int]:
         if not deleted:
             return jsonify({"status": "not_found", "message": "Subscription not found."}), 200
             
-        logger.info(f"Unregistered push subscription: endpoint={endpoint[:50]}...")
+        logger.info(f"Unregistered push subscription for user {g.user_id}: endpoint={endpoint[:50]}...")
         return jsonify({"status": "success"}), 200
         
     except Exception as e:
@@ -950,7 +1165,7 @@ def test_push() -> tuple[Response, int]:
     try:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT * FROM push_subscriptions")
+                cur.execute("SELECT * FROM push_subscriptions WHERE user_id = %s", (g.user_id,))
                 subs = [dict(r) for r in cur.fetchall()]
     except Exception as e:
         logger.error(f"Failed to fetch subscriptions: {e}")
@@ -1021,7 +1236,7 @@ def send_upcoming_deadline_notifications():
                 # Query assignments due in the next 24 hours that are pending and not yet notified
                 cur.execute(
                     """
-                    SELECT id, title, subject, due_date
+                    SELECT id, user_id, title, subject, due_date
                     FROM assignments
                     WHERE NOT is_completed
                       AND NOT deadline_notified
@@ -1032,19 +1247,25 @@ def send_upcoming_deadline_notifications():
                 )
                 tasks = [dict(r) for r in cur.fetchall()]
                 
-                if not tasks:
-                    return
-                    
-                cur.execute("SELECT * FROM push_subscriptions")
-                subs = [dict(r) for r in cur.fetchall()]
-                
-        if not subs:
-            logger.info("No active push subscriptions to notify.")
+        if not tasks:
             return
             
-        logger.info(f"Found {len(tasks)} tasks due soon. Notifying {len(subs)} subscribers...")
+        logger.info(f"Found {len(tasks)} tasks due soon for user notification checks...")
         
         for task in tasks:
+            # Skip if user_id is null
+            if not task.get("user_id"):
+                continue
+                
+            # Fetch subscriptions specifically for this user
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT * FROM push_subscriptions WHERE user_id = %s", (task["user_id"],))
+                    subs = [dict(r) for r in cur.fetchall()]
+                    
+            if not subs:
+                continue
+                
             payload = json.dumps({
                 "title": f"Deadline Approaching: {task['subject']} ⏳",
                 "body": f"'{task['title']}' is due on {task['due_date']}!",
