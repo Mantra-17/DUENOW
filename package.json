@@ -1,0 +1,28 @@
+{
+  "name": "classflow-watcher",
+  "version": "1.0.0",
+  "description": "Automatically tracks your Google Classroom assignments and exposes them via a REST API so you never miss a deadline.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mantra-17/DUENOW.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Mantra-17/DUENOW/issues"
+  },
+  "homepage": "https://github.com/Mantra-17/DUENOW#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.0"
+  }
+}

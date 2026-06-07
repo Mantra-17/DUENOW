@@ -42,3 +42,7 @@ desktop.ini
 # ─── Logs ────────────────────────────────────────────────────
 *.log
 logs/
+
+# ─── Node / JavaScript ──────────────────────────────────────
+node_modules/
+npm-debug.log*

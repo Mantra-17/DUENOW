@@ -8,6 +8,16 @@ const API_KEY      = 'Classflow123';
 const HEADERS      = { 'X-API-KEY': API_KEY, 'Content-Type': 'application/json' };
 const REFRESH_MS   = 60_000;
 
+// Determine API base URL dynamically for Capacitor native WebViews
+const API_BASE_URL = (function() {
+    const isCapacitor = window.location.hostname === 'localhost' && window.location.port === '';
+    if (isCapacitor) {
+        // Fallback to Android Emulator local loopback. For physical devices, replace with host PC's local IP (e.g. http://192.168.x.x:5001)
+        return 'http://10.0.2.2:5001';
+    }
+    return '';
+})();
+
 /* ════════════════════════════════════════════
    STATE
 ════════════════════════════════════════════ */
