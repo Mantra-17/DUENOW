@@ -168,12 +168,12 @@ def check_authentication() -> Response | None:
     if request.method == 'OPTIONS':
         return None
 
-    # Always allow static files, health check, auth endpoints, and push public key
+    # Always allow static files, health check, public auth endpoints (excluding /auth/me), and push public key
     if request.path in OPEN_PATHS or request.path.startswith('/static') \
             or request.path.startswith('/css') or request.path.startswith('/js') \
             or request.path.startswith('/fonts') or request.path.startswith('/icons') \
             or request.path in ('/favicon.ico', '/manifest.json', '/sw.js', '/notifications/vapid-key') \
-            or request.path.startswith('/auth/'):
+            or (request.path.startswith('/auth/') and request.path != '/auth/me'):
         return None
 
     # 1. Bearer Token Session Validation
