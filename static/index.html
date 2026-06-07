@@ -513,7 +513,10 @@
     .ni-overdue  { background: var(--cc-bg);  color: var(--cc);  }
     .ni-today    { background: var(--cc-bg);  color: var(--cc);  }
     .ni-tomorrow { background: var(--cpr-bg); color: var(--cpr); }
-    .ni-soon     { background: var(--ca-bg);  color: var(--ca);  }
+    .ni-3days    { background: var(--cpr-bg); color: var(--cpr); }
+    .ni-5days    { background: var(--ca-bg);  color: var(--ca);  }
+    .ni-new      { background: #e8f0fe;       color: #1A73E8;    }
+    [data-theme="dark"] .ni-new { background: #1a2a4a; color: #8ab4f8; }
 
     .notif-body { flex: 1; min-width: 0; }
 
@@ -537,6 +540,24 @@
 
     .notif-empty .material-icons-round { font-size: 44px; opacity: .4; display: block; margin-bottom: 10px; }
     .notif-empty p { font-size: .875rem; line-height: 1.6; }
+
+    .notif-section-hdr {
+        font-size: .6875rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .07em;
+        color: var(--on-surface-muted);
+        padding: 10px 14px 4px;
+    }
+
+    .notif-tap {
+        font-size: .6875rem; font-weight: 600;
+        color: var(--primary);
+        margin-top: 3px;
+    }
+
+    .notif-time {
+        font-size: .6875rem; color: var(--on-surface-muted);
+        white-space: nowrap; flex-shrink: 0; padding-top: 2px;
+    }
 
     /* ═══════════════════════════════════════════════════════════════
        LEFT NAV RAIL
@@ -1863,6 +1884,7 @@ async function refreshAll() {
         S.tasks    = tasks;
         S.stats    = stats;
         S.subjects = subjects;
+        processNewTasks(tasks);   // detect newly synced Classroom tasks
         renderAll();
     } catch(e) {
         showErr(e.message);
@@ -2462,43 +2484,114 @@ document.addEventListener('keydown', e => {
 setInterval(refreshAll, REFRESH_MS);
 
 /* ════════════════════════════════════════════
-   NOTIFICATIONS
+   NOTIFICATIONS — Two types:
+     A) New-task alerts  (persisted in localStorage)
+     B) Due-date reminders (computed live from task data)
 ════════════════════════════════════════════ */
-const NOTIF_ICON = { overdue: 'warning', today: 'alarm', tomorrow: 'alarm_on', soon: 'schedule' };
 
-function getNotifications() {
+// Icons per type
+const NOTIF_ICON = {
+    new:      'assignment_add',
+    overdue:  'warning',
+    today:    'alarm',
+    tomorrow: 'alarm_on',
+    '3days':  'schedule',
+    '5days':  'event_upcoming',
+};
+
+// Classification labels & icons for new-task alerts
+const CLS_LABEL = { Assignment:'Assignment', CIE:'CIE Exam', Practical:'Practical', Project:'Project', Other:'Task' };
+const CLS_ICO   = { Assignment:'assignment', CIE:'quiz',      Practical:'science',  Project:'rocket_launch', Other:'task_alt' };
+
+/* ────────────────────────────────────────────
+   TYPE A — NEW TASK DETECTION
+──────────────────────────────────────────── */
+function processNewTasks(tasks) {
+    // "Seen" = task IDs the app has already processed
+    const seenIds  = new Set(JSON.parse(localStorage.getItem('cf-seen-ids')  || '[]'));
+    const newAlerts = JSON.parse(localStorage.getItem('cf-notif-new') || '[]');
+    let   changed  = false;
+
+    tasks.forEach(task => {
+        const key = String(task.id);
+        if (!seenIds.has(key)) {
+            // Brand-new task — create a persistent alert
+            const alertId = 'new-' + key;
+            if (!newAlerts.find(a => a.id === alertId)) {
+                newAlerts.unshift({
+                    id:             alertId,
+                    type:           'new',
+                    taskId:         task.id,
+                    title:          task.title,
+                    classification: task.classification || 'Other',
+                    subject:        task.subject || '',
+                    due_date:       task.due_date || null,
+                    ts:             Date.now(),
+                });
+                changed = true;
+            }
+            seenIds.add(key);
+        }
+    });
+
+    // Keep only 40 most-recent new-task alerts
+    while (newAlerts.length > 40) newAlerts.pop();
+
+    localStorage.setItem('cf-seen-ids',  JSON.stringify([...seenIds]));
+    localStorage.setItem('cf-notif-new', JSON.stringify(newAlerts));
+    return changed;
+}
+
+function getNewAlerts() {
+    return JSON.parse(localStorage.getItem('cf-notif-new') || '[]');
+}
+
+/* ────────────────────────────────────────────
+   TYPE B — DUE DATE REMINDERS
+──────────────────────────────────────────── */
+function getDueDateAlerts() {
     if (!S.tasks || !S.tasks.length) return [];
-    const notifs = [];
+    const alerts = [];
     S.tasks.forEach(task => {
         if (task.is_completed || !task.due_date) return;
         const d = daysDiff(task.due_date);
         if (d === null) return;
-        if      (d < 0)  notifs.push({ id:'ov-'+task.id, type:'overdue',  label:`Overdue by ${Math.abs(d)} day${Math.abs(d)>1?'s':''}`, task });
-        else if (d === 0) notifs.push({ id:'td-'+task.id, type:'today',    label:'Due Today!', task });
-        else if (d === 1) notifs.push({ id:'tm-'+task.id, type:'tomorrow', label:'Due Tomorrow', task });
-        else if (d <= 3)  notifs.push({ id:'sn-'+task.id, type:'soon',     label:`Due in ${d} days`, task });
+        if      (d < 0)  alerts.push({ id:'ov-'+task.id, type:'overdue',  label:`Overdue by ${Math.abs(d)} day${Math.abs(d)>1?'s':''}`, task });
+        else if (d === 0) alerts.push({ id:'td-'+task.id, type:'today',    label:'Due Today!',      task });
+        else if (d === 1) alerts.push({ id:'tm-'+task.id, type:'tomorrow', label:'Due Tomorrow',    task });
+        else if (d <= 3)  alerts.push({ id:'3d-'+task.id, type:'3days',   label:`Due in ${d} days`, task });
+        else if (d <= 5)  alerts.push({ id:'5d-'+task.id, type:'5days',   label:`Due in ${d} days`, task });
     });
-    const ord = { overdue:0, today:1, tomorrow:2, soon:3 };
-    notifs.sort((a,b) => ord[a.type] - ord[b.type]);
-    return notifs;
+    const ord = { overdue:0, today:1, tomorrow:2, '3days':3, '5days':4 };
+    alerts.sort((a,b) => ord[a.type] - ord[b.type]);
+    return alerts;
 }
 
-function getReadSet() {
-    return new Set(JSON.parse(localStorage.getItem('cf-notif-read') || '[]'));
-}
+/* ────────────────────────────────────────────
+   READ STATE
+──────────────────────────────────────────── */
+function getReadSet()       { return new Set(JSON.parse(localStorage.getItem('cf-notif-read') || '[]')); }
+function saveReadSet(s)     { localStorage.setItem('cf-notif-read', JSON.stringify([...s])); }
 
-function saveReadSet(s) {
-    localStorage.setItem('cf-notif-read', JSON.stringify([...s]));
+function allNotifIds() {
+    return [
+        ...getNewAlerts().map(n => n.id),
+        ...getDueDateAlerts().map(n => n.id),
+    ];
 }
 
 function updateNotifBadge() {
     const badge = id('notif-badge');
     if (!badge) return;
-    const unread = getNotifications().filter(n => !getReadSet().has(n.id)).length;
+    const read   = getReadSet();
+    const unread = allNotifIds().filter(nid => !read.has(nid)).length;
     badge.textContent = unread > 9 ? '9+' : String(unread);
     badge.classList.toggle('hidden', unread === 0);
 }
 
+/* ────────────────────────────────────────────
+   PANEL OPEN / CLOSE
+──────────────────────────────────────────── */
 function toggleNotif() {
     id('notif-panel').classList.contains('open') ? closeNotif() : openNotif();
 }
@@ -2510,9 +2603,9 @@ function openNotif() {
 }
 
 function closeNotif() {
-    // Mark all visible as read when panel closes
+    // Auto-mark everything as read when panel is closed
     const s = getReadSet();
-    getNotifications().forEach(n => s.add(n.id));
+    allNotifIds().forEach(nid => s.add(nid));
     saveReadSet(s);
     id('notif-panel').classList.remove('open');
     document.removeEventListener('click', outsideNotifClick);
@@ -2523,37 +2616,73 @@ function outsideNotifClick(e) {
     if (!id('notif-wrap').contains(e.target)) closeNotif();
 }
 
+/* ────────────────────────────────────────────
+   RENDER PANEL
+──────────────────────────────────────────── */
 function renderNotifPanel() {
-    const notifs = getNotifications();
-    const read   = getReadSet();
-    const el     = id('notif-list');
+    const read       = getReadSet();
+    const newAlerts  = getNewAlerts();
+    const dueAlerts  = getDueDateAlerts();
+    const el         = id('notif-list');
 
-    if (!notifs.length) {
+    if (!newAlerts.length && !dueAlerts.length) {
         el.innerHTML = `<div class="notif-empty">
             <span class="material-icons-round">notifications_none</span>
-            <p>You're all caught up!<br>No upcoming deadlines.</p>
+            <p>You’re all caught up!<br>No new tasks or upcoming deadlines.</p>
         </div>`;
         return;
     }
 
-    el.innerHTML = notifs.map(n => {
-        const unread = !read.has(n.id);
-        const ico    = NOTIF_ICON[n.type] || 'notifications';
-        const sub    = n.task.subject ? shortSub(n.task.subject) : '';
-        return `<div class="notif-item ${unread ? 'unread' : ''}" onclick="notifClick('${n.task.id}','${n.id}')">
-            <div class="notif-ico ni-${n.type}"><span class="material-icons-round">${ico}</span></div>
-            <div class="notif-body">
-                <div class="notif-title">${esc(n.task.title)}</div>
-                <div class="notif-sub">${esc(n.label)} · ${esc(sub)}</div>
-            </div>
-        </div>`;
-    }).join('');
+    let html = '';
+
+    // ── Section A: New Tasks from Classroom ──
+    if (newAlerts.length) {
+        html += `<div class="notif-section-hdr">New from Classroom</div>`;
+        html += newAlerts.map(n => {
+            const unread = !read.has(n.id);
+            const cls    = n.classification || 'Other';
+            const ico    = CLS_ICO[cls]  || 'task_alt';
+            const clsLbl = CLS_LABEL[cls] || 'Task';
+            const sub    = n.subject ? shortSub(n.subject) : '';
+            const ago    = timeAgo(n.ts);
+            return `<div class="notif-item ${unread ? 'unread' : ''}" onclick="notifClick('${n.taskId}','${n.id}')">
+                <div class="notif-ico ni-new"><span class="material-icons-round">${ico}</span></div>
+                <div class="notif-body">
+                    <div class="notif-title">${esc(n.title)}</div>
+                    <div class="notif-sub">${esc(clsLbl)} assigned · ${esc(sub)}</div>
+                    <div class="notif-tap">Tap to view</div>
+                </div>
+                <div class="notif-time">${esc(ago)}</div>
+            </div>`;
+        }).join('');
+    }
+
+    // ── Section B: Due Date Reminders ──
+    if (dueAlerts.length) {
+        html += `<div class="notif-section-hdr">Deadline Reminders</div>`;
+        html += dueAlerts.map(n => {
+            const unread = !read.has(n.id);
+            const ico    = NOTIF_ICON[n.type] || 'schedule';
+            const sub    = n.task.subject ? shortSub(n.task.subject) : '';
+            return `<div class="notif-item ${unread ? 'unread' : ''}" onclick="notifClick('${n.task.id}','${n.id}')">
+                <div class="notif-ico ni-${n.type}"><span class="material-icons-round">${ico}</span></div>
+                <div class="notif-body">
+                    <div class="notif-title">${esc(n.task.title)}</div>
+                    <div class="notif-sub">${esc(n.label)} · ${esc(sub)}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    el.innerHTML = html;
 }
 
+/* ────────────────────────────────────────────
+   HELPERS
+──────────────────────────────────────────── */
 function notifClick(taskId, notifId) {
     const s = getReadSet(); s.add(notifId); saveReadSet(s);
     closeNotif();
-    // Navigate to dashboard and highlight the task card
     show('dashboard');
     setTimeout(() => {
         const card = id('card-' + taskId);
@@ -2566,16 +2695,25 @@ function notifClick(taskId, notifId) {
 }
 
 function markAllNotifsRead() {
-    const s = new Set(getNotifications().map(n => n.id));
+    const s = new Set(allNotifIds());
     saveReadSet(s);
     renderNotifPanel();
     updateNotifBadge();
 }
 
 function clearNotifRead() {
+    // Clears read state so all alerts appear unread again
     saveReadSet(new Set());
     renderNotifPanel();
     updateNotifBadge();
+}
+
+function timeAgo(ts) {
+    const sec = Math.floor((Date.now() - ts) / 1000);
+    if (sec < 60)   return 'just now';
+    if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
+    if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+    return `${Math.floor(sec/86400)}d ago`;
 }
 
 /* ════════════════════════════════════════════
