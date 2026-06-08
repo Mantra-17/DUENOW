@@ -53,3 +53,31 @@ function shortSub(s) {
 function empty(ico, title, desc) {
     return `<div class="empty"><span class="material-icons-round">${ico}</span><h3>${title}</h3><p>${desc}</p></div>`;
 }
+
+function getCleanInitial(name, email) {
+    let cleanName = (name || '').trim();
+    // Strip roll numbers like 24CS030 or 24dcs076 from the beginning
+    cleanName = cleanName.replace(/^\d+[a-zA-Z]+\d+\s*/, '');
+    
+    // Find the first letter in the cleaned name
+    let match = cleanName.match(/[a-zA-Z]/);
+    if (match) {
+        return match[0].toUpperCase();
+    }
+    
+    // If not found, try the original name
+    if (name) {
+        match = name.match(/[a-zA-Z]/);
+        if (match) return match[0].toUpperCase();
+    }
+    
+    // Try the email
+    if (email) {
+        let cleanEmail = email.replace(/^\d+[a-zA-Z]+\d+/, '');
+        match = cleanEmail.match(/[a-zA-Z]/);
+        if (match) return match[0].toUpperCase();
+    }
+    
+    return 'S';
+}
+

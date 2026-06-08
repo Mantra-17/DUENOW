@@ -93,7 +93,7 @@ function setupUser(user) {
     const lgImg = id('avatar-img-lg');
     const smBtn = id('avatar-btn');
     const lgBtn = document.querySelector('.pd-avatar-lg');
-    const initial = (user.name ? user.name.charAt(0) : 'S').toUpperCase();
+    const initial = getCleanInitial(user.name, user.email);
 
     // Clear any previous fallback text nodes
     if (smBtn) {

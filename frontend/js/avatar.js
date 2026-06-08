@@ -58,7 +58,7 @@ function initAvatar() {
     if (cachedUser) {
         try {
             const user = JSON.parse(cachedUser);
-            initial = (user.name ? user.name.charAt(0) : 'S').toUpperCase();
+            initial = getCleanInitial(user.name, user.email);
             userSeed = user.email || user.id || seed;
         } catch(e) {}
     }
