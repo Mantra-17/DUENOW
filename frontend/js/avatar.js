@@ -13,16 +13,38 @@ const AVATAR_STYLES = [
     'thumbs',
 ];
 
+const GRADIENTS = [
+    'linear-gradient(135deg, #FF512F, #DD2476)', // Sunset Glow
+    'linear-gradient(135deg, #00c6ff, #0072ff)', // Deep Ocean
+    'linear-gradient(135deg, #8A2387, #E94057, #F27121)', // Sweet Purple
+    'linear-gradient(135deg, #11998e, #38ef7d)', // Fresh Mint
+    'linear-gradient(135deg, #654ea3, #eaafc8)', // Royal Lavender
+    'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)', // Electric Indigo
+    'linear-gradient(135deg, #f12711, #f5af19)', // Warm Amber
+    'linear-gradient(135deg, #1D976C, #93F9B9)', // Sleek Teal
+    'linear-gradient(135deg, #DA4453, #89216B)', // Modern Plum
+    'linear-gradient(135deg, #4f46e5, #06b6d4)'  // Indigo/Cyan
+];
+
+function applyAvatarGradient(el, seed) {
+    if (!el || !seed) return;
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % GRADIENTS.length;
+    el.style.background = GRADIENTS[idx];
+    el.style.color = '#FFFFFF';
+}
+window.applyAvatarGradient = applyAvatarGradient;
+
 function initAvatar() {
-    // Retrieve or generate a permanent random seed + style
     let seed  = localStorage.getItem('cf-avatar-seed');
     let style = localStorage.getItem('cf-avatar-style');
 
     if (!seed) {
-        // Random 12-char seed — unique per device/browser
         seed  = Math.random().toString(36).slice(2, 14) +
                 Math.random().toString(36).slice(2, 8);
-        // Pick a random style from the curated list
         style = AVATAR_STYLES[Math.floor(Math.random() * AVATAR_STYLES.length)];
         localStorage.setItem('cf-avatar-seed',  seed);
         localStorage.setItem('cf-avatar-style', style);
@@ -32,22 +54,27 @@ function initAvatar() {
 
     const cachedUser = localStorage.getItem('cf_cached_user');
     let initial = 'S';
+    let userSeed = seed;
     if (cachedUser) {
         try {
             const user = JSON.parse(cachedUser);
             initial = (user.name ? user.name.charAt(0) : 'S').toUpperCase();
+            userSeed = user.email || user.id || seed;
         } catch(e) {}
     }
 
-    // Apply to both small (topbar) and large (profile dropdown)
     ['avatar-img-sm', 'avatar-img-lg'].forEach(imgId => {
         const img = id(imgId);
         if (!img) return;
+        
+        // Apply gradient to the parent button container by default
+        if (img.parentElement) {
+            applyAvatarGradient(img.parentElement, userSeed);
+        }
+        
         img.src = url;
         img.onerror = () => {
-            // Fallback: hide broken img, show letter
             img.style.display = 'none';
-            // Clear existing text node first
             Array.from(img.parentElement.childNodes).forEach(node => {
                 if (node.nodeType === Node.TEXT_NODE) node.remove();
             });

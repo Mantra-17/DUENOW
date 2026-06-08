@@ -361,18 +361,26 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
     logger.info(f"  Classroom sync complete for user {user_id} — {total_new} new tasks stored.")
 
 
-def run_ai_batch_analysis(delay_seconds: float = 6.0) -> None:
+def run_ai_batch_analysis(user_id: str | None = None, delay_seconds: float = 6.0) -> None:
     """
     Phase 2: AI-analyze all tasks with ai_success=False.
+    If user_id is provided, only analyze tasks for that user.
     Paced at delay_seconds apart to stay within free-tier limits (~10 RPM).
     """
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id, title, subject FROM assignments "
-                    "WHERE ai_success = FALSE ORDER BY due_date ASC NULLS LAST"
-                )
+                if user_id:
+                    cur.execute(
+                        "SELECT id, title, subject FROM assignments "
+                        "WHERE ai_success = FALSE AND user_id = %s ORDER BY due_date ASC NULLS LAST",
+                        (user_id,)
+                    )
+                else:
+                    cur.execute(
+                        "SELECT id, title, subject FROM assignments "
+                        "WHERE ai_success = FALSE ORDER BY due_date ASC NULLS LAST"
+                    )
                 pending = cur.fetchall()
     except Exception as e:
         logger.error(f"AI batch: could not fetch pending tasks: {e}")
@@ -486,9 +494,15 @@ def sync_user_data_inline(user_id: str) -> None:
             token = refresh_user_token(user_id)
             if token:
                 run_classroom_sync(user_id, token)
-        # Run AI analysis immediately on any newly synced coursework
+        # Run AI analysis asynchronously in a background thread so we don't block the API response
         if os.getenv("GEMINI_API_KEY"):
-            run_ai_batch_analysis(delay_seconds=6.0)
+            import threading
+            threading.Thread(
+                target=run_ai_batch_analysis,
+                args=(user_id, 6.0),
+                daemon=True
+            ).start()
+            logger.info(f"Triggered background AI batch analysis thread for user {user_id}")
     except Exception as e:
         logger.error(f"Inline background sync failed for user {user_id}: {e}", exc_info=True)
 

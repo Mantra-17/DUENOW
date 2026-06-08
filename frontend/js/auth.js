@@ -111,6 +111,10 @@ function setupUser(user) {
     if (lgImg) lgImg.style.display = 'block';
 
     // Setup consistent DiceBear seed or Google picture
+    const userSeed = user.email || user.id || user.name || 'default';
+    if (smBtn && window.applyAvatarGradient) window.applyAvatarGradient(smBtn, userSeed);
+    if (lgBtn && window.applyAvatarGradient) window.applyAvatarGradient(lgBtn, userSeed);
+
     if (user.picture) {
         if (smImg) {
             smImg.src = user.picture;
@@ -225,8 +229,12 @@ function createLoginScreenElement() {
                 Sign In with Google
             </a>
             
-            <p class="login-footer">Secure Google OAuth verification. No credentials stored.</p>
+            <a href="${API_BASE_URL}/auth/mock-select" class="login-btn mock-btn-select" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); margin-top: 12px; color: #e2e8f0;">
+                <span class="material-icons-round" style="margin-right: 8px; font-size: 20px;">science</span>
+                Sign In with Mock Account
+            </a>
         </div>
+
     `;
     
     document.body.appendChild(loginDiv);

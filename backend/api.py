@@ -325,7 +325,7 @@ def auth_mock_select() -> str:
     <body>
         <div class="card">
             <h2>Select Mock Account</h2>
-            <p>Google Client credentials are not configured.<br>Select a mock account to test multi-user dashboard segregation.</p>
+            <p>Select a mock account to test ClassFlow's features, AI-powered analytics, and multi-user data segregation.</p>
             
             <button class="btn" onclick="login('mock-mantra', 'mantra@charusat.edu.in', 'Mantra Patel')">
                 Sign in as Mantra Patel (Student A)

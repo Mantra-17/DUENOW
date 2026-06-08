@@ -98,9 +98,16 @@ function renderDash() {
     const sk  = id('sort-dash').value;
     const all = sorted(S.tasks.filter(t => !t.is_completed), sk);
     setText('dash-count', all.length + ' pending');
+
+    const cachedUser = JSON.parse(localStorage.getItem('cf_cached_user') || '{}');
+    const isGoogle = cachedUser.id && !cachedUser.id.startsWith('mock-');
+    const isEmptyGoogle = isGoogle && S.subjects.length === 0;
+
     id('dash-list').innerHTML = all.length
         ? all.map((t,i) => card(t, i*25)).join('')
-        : empty('task_alt', 'All caught up!', 'No pending assignments — great work! 🎉');
+        : (isEmptyGoogle
+            ? emptyGoogleClassroomHTML(cachedUser.email)
+            : empty('task_alt', 'All caught up!', 'No pending assignments — great work! 🎉'));
 }
 
 /* ════════════════════════════════════════════
@@ -126,11 +133,17 @@ function renderTasks() {
     tasks = sorted(tasks, id('sort-tasks').value);
     setText('tasks-count', `${tasks.length} assignment${tasks.length!==1?'s':''}`);
 
+    const cachedUser = JSON.parse(localStorage.getItem('cf_cached_user') || '{}');
+    const isGoogle = cachedUser.id && !cachedUser.id.startsWith('mock-');
+    const isEmptyGoogle = isGoogle && S.subjects.length === 0;
+
     id('tasks-list').innerHTML = tasks.length
         ? tasks.map((t,i) => card(t, i*25)).join('')
-        : empty('search_off', 'No results', S.filter !== 'all'
-            ? `No ${S.filter} assignments. Try a different filter.`
-            : 'No assignments match your search.');
+        : (isEmptyGoogle && !S.search && S.filter === 'all'
+            ? emptyGoogleClassroomHTML(cachedUser.email)
+            : empty('search_off', 'No results', S.filter !== 'all'
+                ? `No ${S.filter} assignments. Try a different filter.`
+                : 'No assignments match your search.'));
 }
 
 function updateChipCounts() {
@@ -386,6 +399,33 @@ function esc(s) {
 function empty(ico, title, desc) {
     return `<div class="empty"><span class="material-icons-round">${ico}</span><h3>${title}</h3><p>${desc}</p></div>`;
 }
+
+function emptyGoogleClassroomHTML(email) {
+    return `
+        <div class="empty empty-warning">
+            <span class="material-icons-round" style="color: var(--warning); font-size: 52px; margin-bottom: 14px;">warning_amber</span>
+            <h3>No Google Classroom Courses Found</h3>
+            <p>We couldn't retrieve any active courses for your account (<strong>${esc(email)}</strong>).</p>
+            <div class="empty-guide">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.9rem; font-weight: 600; color: var(--on-surface);">Why is this happening?</h4>
+                <ul style="margin: 0; padding-left: 20px; color: var(--on-surface-var); font-size: 0.8rem; line-height: 1.5;">
+                    <li style="margin-bottom: 6px;">Your school or university Google Workspace account may have <strong>Classroom API access disabled</strong> for third-party apps.</li>
+                    <li style="margin-bottom: 6px;">You might not be currently enrolled in any active courses on <a href="https://classroom.google.com" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none; font-weight: 500;">Google Classroom</a>.</li>
+                    <li style="margin-bottom: 6px;">You might not have granted all requested scopes when signing in.</li>
+                </ul>
+                <div class="empty-actions" style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+                    <button class="btn btn-ghost" onclick="refreshAll(true)" style="height: auto; padding: 8px 16px; font-size: .8rem; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-icons-round" style="font-size: 16px;">sync</span> Retry Sync
+                    </button>
+                    <button class="btn btn-fill" onclick="logout(); setTimeout(() => { window.location.href = API_BASE_URL + '/auth/mock-select' }, 100)" style="height: auto; padding: 8px 16px; font-size: .8rem; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-icons-round" style="font-size: 16px;">science</span> Try Mock Mode
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 
 function id(i) { return document.getElementById(i); }
 function setText(i, v) { const e = id(i); if(e) e.textContent = v; }
