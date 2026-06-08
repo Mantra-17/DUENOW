@@ -81,3 +81,12 @@ function getCleanInitial(name, email) {
     return 'S';
 }
 
+function getSeedHash(seed) {
+    if (!seed) return 0;
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
+}
+

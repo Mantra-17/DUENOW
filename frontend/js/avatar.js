@@ -40,17 +40,11 @@ window.applyAvatarGradient = applyAvatarGradient;
 
 function initAvatar() {
     let seed  = localStorage.getItem('cf-avatar-seed');
-    let style = localStorage.getItem('cf-avatar-style');
 
     if (!seed) {
-        seed  = Math.random().toString(36).slice(2, 14) +
-                Math.random().toString(36).slice(2, 8);
-        style = AVATAR_STYLES[Math.floor(Math.random() * AVATAR_STYLES.length)];
+        seed  = Math.random().toString(36).slice(2, 14);
         localStorage.setItem('cf-avatar-seed',  seed);
-        localStorage.setItem('cf-avatar-style', style);
     }
-
-    const url = `https://api.dicebear.com/9.x/${style}/svg?seed=${seed}&size=128&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 
     const cachedUser = localStorage.getItem('cf_cached_user');
     let initial = 'S';
@@ -63,22 +57,26 @@ function initAvatar() {
         } catch(e) {}
     }
 
+    const hash = getSeedHash(userSeed);
+    const localIndex = (hash % 6) + 1;
+    const url = `icons/avatars/avatar-${localIndex}.png`;
+
     ['avatar-img-sm', 'avatar-img-lg'].forEach(imgId => {
         const img = id(imgId);
         if (!img) return;
         
-        // Apply gradient to the parent button container by default
-        if (img.parentElement) {
-            applyAvatarGradient(img.parentElement, userSeed);
-        }
-        
+        img.style.display = 'block';
         img.src = url;
+        
         img.onerror = () => {
             img.style.display = 'none';
-            Array.from(img.parentElement.childNodes).forEach(node => {
-                if (node.nodeType === Node.TEXT_NODE) node.remove();
-            });
-            img.parentElement.appendChild(document.createTextNode(initial));
+            if (img.parentElement) {
+                applyAvatarGradient(img.parentElement, userSeed);
+                Array.from(img.parentElement.childNodes).forEach(node => {
+                    if (node.nodeType === Node.TEXT_NODE) node.remove();
+                });
+                img.parentElement.appendChild(document.createTextNode(initial));
+            }
         };
     });
 }

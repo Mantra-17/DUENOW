@@ -119,15 +119,25 @@ function setupUser(user) {
         if (smImg) {
             smImg.src = user.picture;
             smImg.onerror = () => {
-                smImg.style.display = 'none';
-                if (smBtn) smBtn.appendChild(document.createTextNode(initial));
+                const hash = getSeedHash(userSeed);
+                const localIndex = (hash % 6) + 1;
+                smImg.src = `icons/avatars/avatar-${localIndex}.png`;
+                smImg.onerror = () => {
+                    smImg.style.display = 'none';
+                    if (smBtn) smBtn.appendChild(document.createTextNode(initial));
+                };
             };
         }
         if (lgImg) {
             lgImg.src = user.picture;
             lgImg.onerror = () => {
-                lgImg.style.display = 'none';
-                if (lgBtn) lgBtn.appendChild(document.createTextNode(initial));
+                const hash = getSeedHash(userSeed);
+                const localIndex = (hash % 6) + 1;
+                lgImg.src = `icons/avatars/avatar-${localIndex}.png`;
+                lgImg.onerror = () => {
+                    lgImg.style.display = 'none';
+                    if (lgBtn) lgBtn.appendChild(document.createTextNode(initial));
+                };
             };
         }
     } else {
