@@ -1,6 +1,6 @@
 /* ClassFlow Service Worker — Cache-first for assets, Network-first for API */
 
-const CACHE_NAME    = 'classflow-v4';
+const CACHE_NAME    = 'classflow-v5';
 const OFFLINE_URL   = '/';
 
 /* All static assets to pre-cache on install */
@@ -30,6 +30,12 @@ const PRECACHE_URLS = [
     '/js/app.js',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
+    '/icons/avatars/avatar-1.png',
+    '/icons/avatars/avatar-2.png',
+    '/icons/avatars/avatar-3.png',
+    '/icons/avatars/avatar-4.png',
+    '/icons/avatars/avatar-5.png',
+    '/icons/avatars/avatar-6.png',
     '/manifest.json',
 ];
 
