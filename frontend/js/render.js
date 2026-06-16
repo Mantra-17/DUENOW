@@ -137,13 +137,61 @@ function renderTasks() {
     const isGoogle = cachedUser.id && !cachedUser.id.startsWith('mock-');
     const isEmptyGoogle = isGoogle && S.subjects.length === 0;
 
+    let matchingSubjectsHTML = '';
+    if (tasks.length === 0 && S.search) {
+        const q = S.search.toLowerCase();
+        const matchingSubs = S.subjects.filter(s => s.subject.toLowerCase().includes(q));
+        if (matchingSubs.length > 0) {
+            matchingSubjectsHTML = `
+            <div class="matching-subjects-section" style="margin-top: 28px; width: 100%; text-align: left;">
+                <h3 style="font-size: 1rem; color: var(--text-muted); margin-bottom: 16px; font-weight: 600;">Matching Courses</h3>
+                <div class="subjects-grid">
+                    ${matchingSubs.map((s, i) => {
+                        const pct    = s.total > 0 ? Math.round(s.completed / s.total * 100) : 0;
+                        const color  = hslColor(s.subject);
+                        const abbr   = subAbbr(s.subject);
+                        const C      = 2 * Math.PI * 18;
+                        const offset = C - (pct / 100) * C;
+                        return `
+                        <div class="subj-card" onclick="filterSubject('${esc(s.subject)}')" tabindex="0"
+                             role="button" aria-label="Filter by ${esc(s.subject)}"
+                             style="animation:cardIn .22s ease-out ${i*40}ms both"
+                             onkeydown="if(event.key==='Enter')filterSubject('${esc(s.subject)}')">
+                            <div class="subj-card-top">
+                                <div class="subj-ico" style="background:${color}">${abbr}</div>
+                                <div class="ring-wrap" title="${pct}% complete">
+                                    <svg width="44" height="44" viewBox="0 0 44 44">
+                                        <circle class="ring-bg" cx="22" cy="22" r="18"/>
+                                        <circle class="ring-fg" cx="22" cy="22" r="18"
+                                            stroke="${color}"
+                                            stroke-dasharray="${C.toFixed(1)}"
+                                            stroke-dashoffset="${offset.toFixed(1)}"/>
+                                    </svg>
+                                    <span class="ring-pct">${pct}%</span>
+                                </div>
+                            </div>
+                            <div class="subj-name">${esc(s.subject)}</div>
+                            <div class="subj-meta">
+                                <span><span class="material-icons-round">assignment</span>${s.total}</span>
+                                <span><span class="material-icons-round">pending_actions</span>${s.pending} pending</span>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }
+    }
+
     id('tasks-list').innerHTML = tasks.length
         ? tasks.map((t,i) => card(t, i*25)).join('')
         : (isEmptyGoogle && !S.search && S.filter === 'all'
             ? emptyGoogleClassroomHTML(cachedUser.email)
-            : empty('search_off', 'No results', S.filter !== 'all'
-                ? `No ${S.filter} assignments. Try a different filter.`
-                : 'No assignments match your search.'));
+            : `<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+                ${empty('search_off', 'No results', S.filter !== 'all'
+                    ? `No ${S.filter} assignments. Try a different filter.`
+                    : 'No assignments match your search.')}
+                ${matchingSubjectsHTML}
+               </div>`);
 }
 
 function updateChipCounts() {

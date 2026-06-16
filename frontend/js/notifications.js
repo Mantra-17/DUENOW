@@ -329,7 +329,43 @@ async function checkPushSubscriptionState() {
     
     try {
         const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
+        let sub = await reg.pushManager.getSubscription();
+        
+        if (sub) {
+            try {
+                const { public_key } = await api('/notifications/vapid-key');
+                const serverKey = urlBase64ToUint8Array(public_key);
+                const subKey = new Uint8Array(sub.options.applicationServerKey);
+                
+                let keysMatch = (subKey.length === serverKey.length);
+                if (keysMatch) {
+                    for (let i = 0; i < subKey.length; i++) {
+                        if (subKey[i] !== serverKey[i]) {
+                            keysMatch = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!keysMatch) {
+                    console.log('[PUSH] VAPID key mismatch detected. Auto-resubscribing...');
+                    await sub.unsubscribe();
+                    sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: serverKey
+                    });
+                    const rawSub = JSON.parse(JSON.stringify(sub));
+                    await api('/notifications/subscribe', {
+                        method: 'POST',
+                        body: JSON.stringify({ subscription: rawSub })
+                    });
+                    console.log('[PUSH] Auto-resubscribed successfully!');
+                }
+            } catch (err) {
+                console.error('[PUSH] Failed to verify VAPID key match:', err);
+            }
+        }
+        
         toggle.checked = !!sub;
         id('push-notif-lbl').textContent = sub ? 'Deadline Push Alerts (Active)' : 'Enable Deadline Push Alerts';
     } catch (err) {

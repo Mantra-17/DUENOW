@@ -223,7 +223,23 @@ id('search-inp').addEventListener('input', function() {
         if (S.view === 'subjects') {
             renderSubjects();
         } else if (S.search && S.view !== 'tasks') {
-            show('tasks');
+            const q = S.search.toLowerCase();
+            const hasMatchingTasks = S.tasks.some(t =>
+                !t.is_completed && (
+                    t.title.toLowerCase().includes(q) ||
+                    t.subject.toLowerCase().includes(q) ||
+                    (t.summary||'').toLowerCase().includes(q)
+                )
+            );
+            const hasMatchingSubjects = S.subjects.some(s =>
+                s.subject.toLowerCase().includes(q)
+            );
+            
+            if (!hasMatchingTasks && hasMatchingSubjects) {
+                show('subjects');
+            } else {
+                show('tasks');
+            }
         } else {
             renderTasks();
         }
