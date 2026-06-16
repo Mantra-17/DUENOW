@@ -48,7 +48,7 @@ def run(force: bool = False) -> None:
     init_db()
 
     # Fetch tasks that need analysis
-    filter_clause = "" if force else "WHERE ai_success = FALSE"
+    filter_clause = "WHERE NOT id LIKE '%%:placeholder-course-%%'" if force else "WHERE ai_success = FALSE AND NOT id LIKE '%%:placeholder-course-%%'"
     with get_conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(

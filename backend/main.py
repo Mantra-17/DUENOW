@@ -353,8 +353,56 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
             items = work.get("courseWork", [])
             logger.info(f"    Found {len(items)} courseWork item(s).")
             if items:
+                # Delete any placeholder assignment for this course if it exists
+                placeholder_id = f"{user_id}:placeholder-course-{cid}"
+                try:
+                    with get_conn() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("DELETE FROM assignments WHERE id = %s AND user_id = %s", (placeholder_id, user_id))
+                        conn.commit()
+                except Exception as del_err:
+                    logger.warning(f"  Failed to delete placeholder for course {name}: {del_err}")
+                
                 new, _ = sync_to_db(items, name, user_id)
                 total_new += new
+            else:
+                # Insert a placeholder assignment to register the course name in the database
+                placeholder_id = f"{user_id}:placeholder-course-{cid}"
+                try:
+                    with get_conn() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "SELECT id FROM assignments WHERE id = %s AND user_id = %s",
+                                (placeholder_id, user_id)
+                            )
+                            if cur.fetchone() is None:
+                                cur.execute(
+                                    """
+                                    INSERT INTO assignments
+                                        (id, user_id, subject, title, due_date,
+                                         summary, difficulty, estimated_minutes,
+                                         classification, model_used, ai_success, is_completed)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    ON CONFLICT (id) DO NOTHING
+                                    """,
+                                    (
+                                        placeholder_id,
+                                        user_id,
+                                        name,
+                                        "Welcome to Class! (No tasks assigned yet)",
+                                        None,
+                                        "Placeholder task created because there are no assignments posted in this Google Classroom yet.",
+                                        1,
+                                        1,
+                                        "Other",
+                                        "placeholder",
+                                        True,  # ai_success=True so AI analyzer doesn't process it
+                                        True   # is_completed=True so it is marked completed
+                                    )
+                                )
+                        conn.commit()
+                except Exception as ins_err:
+                    logger.error(f"  ❌ Failed to insert placeholder for empty course {name}: {ins_err}", exc_info=True)
         except Exception as e:
             logger.error(f'  ❌ Could not fetch work for "{name}": {e}', exc_info=True)
 

@@ -480,7 +480,7 @@ def get_tasks() -> tuple[Response, int]:
     except ValueError:
         limit = 100
 
-    query = "SELECT * FROM assignments WHERE user_id = %s"
+    query = "SELECT * FROM assignments WHERE user_id = %s AND NOT id LIKE '%%:placeholder-course-%%'"
     params: list[Any] = [g.user_id]
 
     if subject:
@@ -819,9 +819,9 @@ def get_subjects() -> tuple[Response, int]:
                     """
                     SELECT
                         subject,
-                        COUNT(*)                            AS total,
-                        COUNT(*) FILTER (WHERE NOT is_completed) AS pending,
-                        COUNT(*) FILTER (WHERE is_completed)     AS completed
+                        COUNT(*) FILTER (WHERE NOT id LIKE '%%:placeholder-course-%%')                            AS total,
+                        COUNT(*) FILTER (WHERE NOT is_completed AND NOT id LIKE '%%:placeholder-course-%%') AS pending,
+                        COUNT(*) FILTER (WHERE is_completed AND NOT id LIKE '%%:placeholder-course-%%')     AS completed
                     FROM assignments
                     WHERE user_id = %s
                     GROUP BY subject
@@ -883,7 +883,7 @@ def get_stats() -> tuple[Response, int]:
                             AVG(CASE WHEN ai_success THEN 1.0 ELSE 0.0 END)::NUMERIC, 2
                         )                                                 AS ai_success_rate
                     FROM assignments
-                    WHERE user_id = %s
+                    WHERE user_id = %s AND NOT id LIKE '%%:placeholder-course-%%'
                     """,
                     (g.user_id,)
                 )
@@ -894,7 +894,7 @@ def get_stats() -> tuple[Response, int]:
                     """
                     SELECT classification, COUNT(*) AS count
                     FROM assignments
-                    WHERE classification IS NOT NULL AND user_id = %s
+                    WHERE classification IS NOT NULL AND user_id = %s AND NOT id LIKE '%%:placeholder-course-%%'
                     GROUP BY classification
                     ORDER BY count DESC
                     """,
@@ -907,7 +907,7 @@ def get_stats() -> tuple[Response, int]:
                     """
                     SELECT subject, COUNT(*) AS count
                     FROM assignments
-                    WHERE user_id = %s
+                    WHERE user_id = %s AND NOT id LIKE '%%:placeholder-course-%%'
                     GROUP BY subject
                     ORDER BY count DESC
                     """,
@@ -1012,7 +1012,7 @@ def reanalyze_all_tasks() -> tuple[Response, int]:
     import time as _time
 
     force = request.args.get("force", "false").lower() == "true"
-    filter_clause = "WHERE user_id = %s" if force else "WHERE user_id = %s AND ai_success = FALSE"
+    filter_clause = "WHERE user_id = %s AND NOT id LIKE '%%:placeholder-course-%%'" if force else "WHERE user_id = %s AND ai_success = FALSE AND NOT id LIKE '%%:placeholder-course-%%'"
 
     try:
         with get_conn() as conn:
