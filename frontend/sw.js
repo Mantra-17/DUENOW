@@ -1,6 +1,6 @@
 /* ClassFlow Service Worker — Cache-first for assets, Network-first for API */
 
-const CACHE_NAME    = 'classflow-v5';
+const CACHE_NAME    = 'classflow-v6';
 const OFFLINE_URL   = '/';
 
 /* All static assets to pre-cache on install */
