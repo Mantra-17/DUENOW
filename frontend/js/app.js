@@ -220,8 +220,13 @@ id('search-inp').addEventListener('input', function() {
     clearTimeout(_st);
     S.search = this.value.trim();
     _st = setTimeout(() => {
-        if (S.search && S.view !== 'tasks') show('tasks');
-        else renderTasks();
+        if (S.view === 'subjects') {
+            renderSubjects();
+        } else if (S.search && S.view !== 'tasks') {
+            show('tasks');
+        } else {
+            renderTasks();
+        }
     }, 200);
 });
 

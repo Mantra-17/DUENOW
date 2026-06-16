@@ -148,7 +148,7 @@ def parse_due_date(due: dict | None) -> date | None:
         return None
 
 
-def sync_to_db(assignments: list[dict], course_name: str, user_id: str) -> tuple[int, int]:
+def sync_to_db(assignments: list[dict], course_name: str, user_id: str, course_created_at: str | None = None) -> tuple[int, int]:
     """
     Phase 1 — fast sync: store ALL new assignments immediately with placeholder data.
     Phase 2 — AI analysis runs separately via run_ai_batch_analysis() after sync.
@@ -188,8 +188,8 @@ def sync_to_db(assignments: list[dict], course_name: str, user_id: str) -> tuple
                         INSERT INTO assignments
                             (id, user_id, subject, title, due_date,
                              summary, difficulty, estimated_minutes,
-                             classification, model_used, ai_success)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             classification, model_used, ai_success, course_created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         (
@@ -204,6 +204,7 @@ def sync_to_db(assignments: list[dict], course_name: str, user_id: str) -> tuple
                             "Other",                  # placeholder classification
                             None,                     # no model yet
                             False,                    # ai_success=False → Phase 2 picks it up
+                            course_created_at,
                         ),
                     )
                     inserted = cur.rowcount
@@ -232,6 +233,7 @@ def sync_to_db(assignments: list[dict], course_name: str, user_id: str) -> tuple
 MOCK_COURSES = [
     {
         "name": "DSA",
+        "creationTime": "2026-05-01T00:00:00Z",
         "courseWork": [
             {"id": "mock-dsa-avl",  "title": "Practical 5: Implement AVL Tree operations",       "dueDate": {"year": 2026, "month": 6, "day": 15}},
             {"id": "mock-dsa-cie1", "title": "CIE 1: Written test on Linked Lists & Stacks",     "dueDate": {"year": 2026, "month": 6, "day": 10}},
@@ -241,6 +243,7 @@ MOCK_COURSES = [
     },
     {
         "name": "DAA",
+        "creationTime": "2026-04-01T00:00:00Z",
         "courseWork": [
             {"id": "mock-daa-greedy",  "title": "Practical 4: Greedy Algorithms vs Dynamic Programming", "dueDate": {"year": 2026, "month": 6, "day": 18}},
             {"id": "mock-daa-proj1",   "title": "Project Phase 1 Submission: NP-Hard Problem",            "dueDate": {"year": 2026, "month": 6, "day": 25}},
@@ -249,6 +252,7 @@ MOCK_COURSES = [
     },
     {
         "name": "SE",
+        "creationTime": "2026-03-01T00:00:00Z",
         "courseWork": [
             {"id": "mock-se-srs",  "title": "Assignment 1: Software Requirements Specification document", "dueDate": {"year": 2026, "month": 6, "day": 8}},
             {"id": "mock-se-uml",  "title": "Practical 3: Create UML diagrams for ClassFlow Watcher",    "dueDate": {"year": 2026, "month": 6, "day": 12}},
@@ -257,6 +261,7 @@ MOCK_COURSES = [
     },
     {
         "name": "MP",
+        "creationTime": "2026-02-01T00:00:00Z",
         "courseWork": [
             {"id": "mock-mp-8085", "title": "Practical 2: 8085 Assembly program for 16-bit addition", "dueDate": {"year": 2026, "month": 6, "day": 9}},
             {"id": "mock-mp-int",  "title": "Practical 3: Interrupt-driven I/O with 8085",            "dueDate": {"year": 2026, "month": 6, "day": 16}},
@@ -264,6 +269,7 @@ MOCK_COURSES = [
     },
     {
         "name": "CN",
+        "creationTime": "2026-01-01T00:00:00Z",
         "courseWork": [
             {"id": "mock-cn-sock", "title": "Practical 4: TCP Socket Chat Application in Python", "dueDate": {"year": 2026, "month": 6, "day": 14}},
             {"id": "mock-cn-cie3", "title": "CIE 3: Network Layer Protocols and Routing",         "dueDate": {"year": 2026, "month": 6, "day": 30}},
@@ -278,8 +284,20 @@ def run_mock_sync(user_id: str) -> None:
     for course in MOCK_COURSES:
         name  = course["name"]
         items = course["courseWork"]
+        created_at = course.get("creationTime")
         logger.info(f"  ─── {name} (MOCK: {len(items)} items)")
-        new, _ = sync_to_db(items, name, user_id)
+        if created_at:
+            try:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE assignments SET course_created_at = %s WHERE subject = %s AND user_id = %s AND course_created_at IS NULL",
+                            (created_at, name, user_id)
+                        )
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"  Failed to update course_created_at for course {name}: {e}")
+        new, _ = sync_to_db(items, name, user_id, created_at)
         total_new += new
     logger.info(f"Mock sync complete for user {user_id} — {total_new} new tasks stored.")
 
@@ -346,7 +364,21 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
     for course in active_courses:
         name = course.get("name", "Unknown")
         cid  = course.get("id", "")
+        created_at = course.get("creationTime")
         logger.info(f"  ─── {name} (id={cid})")
+
+        # Backfill creation date for existing assignments of this subject
+        if created_at:
+            try:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE assignments SET course_created_at = %s WHERE subject = %s AND user_id = %s AND course_created_at IS NULL",
+                            (created_at, name, user_id)
+                        )
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"  Failed to update course_created_at for course {name}: {e}")
 
         try:
             work  = service.courses().courseWork().list(courseId=cid).execute()
@@ -363,7 +395,7 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
                 except Exception as del_err:
                     logger.warning(f"  Failed to delete placeholder for course {name}: {del_err}")
                 
-                new, _ = sync_to_db(items, name, user_id)
+                new, _ = sync_to_db(items, name, user_id, created_at)
                 total_new += new
             else:
                 # Insert a placeholder assignment to register the course name in the database
@@ -381,8 +413,8 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
                                     INSERT INTO assignments
                                         (id, user_id, subject, title, due_date,
                                          summary, difficulty, estimated_minutes,
-                                         classification, model_used, ai_success, is_completed)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                         classification, model_used, ai_success, is_completed, course_created_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     ON CONFLICT (id) DO NOTHING
                                     """,
                                     (
@@ -397,7 +429,8 @@ def run_classroom_sync(user_id: str, access_token: str) -> None:
                                         "Other",
                                         "placeholder",
                                         True,  # ai_success=True so AI analyzer doesn't process it
-                                        True   # is_completed=True so it is marked completed
+                                        True,  # is_completed=True so it is marked completed
+                                        created_at
                                     )
                                 )
                         conn.commit()

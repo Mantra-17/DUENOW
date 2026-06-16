@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS assignments (
     model_used        TEXT,
     ai_success        BOOLEAN     NOT NULL DEFAULT FALSE,
     deadline_notified BOOLEAN     NOT NULL DEFAULT FALSE,
+    course_created_at TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -185,6 +186,7 @@ MIGRATION_SQL = [
     """,
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
     "ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
+    "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_created_at TIMESTAMPTZ",
 ]
 
 

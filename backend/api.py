@@ -819,13 +819,14 @@ def get_subjects() -> tuple[Response, int]:
                     """
                     SELECT
                         subject,
-                        COUNT(*) FILTER (WHERE NOT id LIKE '%%:placeholder-course-%%')                            AS total,
+                        MAX(course_created_at)                                                      AS created_at,
+                        COUNT(*) FILTER (WHERE NOT id LIKE '%%:placeholder-course-%%')              AS total,
                         COUNT(*) FILTER (WHERE NOT is_completed AND NOT id LIKE '%%:placeholder-course-%%') AS pending,
                         COUNT(*) FILTER (WHERE is_completed AND NOT id LIKE '%%:placeholder-course-%%')     AS completed
                     FROM assignments
                     WHERE user_id = %s
                     GROUP BY subject
-                    ORDER BY subject ASC
+                    ORDER BY created_at DESC NULLS LAST, subject ASC
                     """,
                     (g.user_id,)
                 )
@@ -1241,8 +1242,8 @@ def test_push() -> tuple[Response, int]:
         except WebPushException as ex:
             logger.warning(f"Push notification failed for {sub['endpoint'][:40]}: {ex}")
             fail_count += 1
-            # Clean up dead subscriptions (404 Not Found or 410 Gone)
-            if ex.response is not None and ex.response.status_code in (404, 410):
+            # Clean up dead or mismatched subscriptions (403 Forbidden, 404 Not Found or 410 Gone)
+            if ex.response is not None and ex.response.status_code in (403, 404, 410):
                 try:
                     with get_conn() as conn:
                         with conn.cursor() as cur:
@@ -1327,7 +1328,8 @@ def send_upcoming_deadline_notifications():
                     )
                 except WebPushException as ex:
                     logger.warning(f"Push notification failed for {sub['endpoint'][:40]}: {ex}")
-                    if ex.response is not None and ex.response.status_code in (404, 410):
+                    # Clean up dead or mismatched subscriptions (403 Forbidden, 404 Not Found or 410 Gone)
+                    if ex.response is not None and ex.response.status_code in (403, 404, 410):
                         try:
                             with get_conn() as conn:
                                 with conn.cursor() as cur:

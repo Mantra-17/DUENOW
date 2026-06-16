@@ -167,12 +167,19 @@ function updateChipCounts() {
    RENDER: SUBJECTS
 ════════════════════════════════════════════ */
 function renderSubjects() {
-    setText('subj-count', `${S.subjects.length} courses`);
-    if (!S.subjects.length) {
-        id('subj-grid').innerHTML = empty('menu_book','No subjects','Sync Classroom to load subjects.');
+    let subjects = S.subjects;
+    if (S.search) {
+        const q = S.search.toLowerCase();
+        subjects = subjects.filter(s => s.subject.toLowerCase().includes(q));
+    }
+    setText('subj-count', `${subjects.length} course${subjects.length!==1?'s':''}`);
+    if (!subjects.length) {
+        id('subj-grid').innerHTML = S.search
+            ? empty('search_off', 'No courses found', 'Try a different search query.')
+            : empty('menu_book','No subjects','Sync Classroom to load subjects.');
         return;
     }
-    id('subj-grid').innerHTML = S.subjects.map((s,i) => {
+    id('subj-grid').innerHTML = subjects.map((s,i) => {
         const pct    = s.total > 0 ? Math.round(s.completed / s.total * 100) : 0;
         const color  = hslColor(s.subject);
         const abbr   = subAbbr(s.subject);
