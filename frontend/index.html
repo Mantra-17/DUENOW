@@ -173,6 +173,14 @@
                         <span class="material-icons-round">rate_review</span>
                         Send Feedback
                     </button>
+                    <button class="pd-menu-item" onclick="show('reviews');closeProfile()">
+                        <span class="material-icons-round">favorite</span>
+                        Wall of Love
+                    </button>
+                    <button class="pd-menu-item" id="pd-admin-feedback-btn" style="display:none" onclick="show('admin-feedback');closeProfile()">
+                        <span class="material-icons-round">admin_panel_settings</span>
+                        Review Feedback
+                    </button>
                     <div class="pd-divider"></div>
                     <button class="pd-menu-item danger" onclick="logout();closeProfile()">
                         <span class="material-icons-round">logout</span>
@@ -368,6 +376,34 @@
         <div class="task-list" id="done-list">
             <div class="skel skel-card"></div>
             <div class="skel skel-card"></div>
+        </div>
+    </section>
+
+    <!-- ===== WALL OF LOVE VIEW ===== -->
+    <section class="view" id="v-reviews" aria-label="Wall of Love">
+        <div class="sec-hdr">
+            <h1 class="sec-title">Wall of Love</h1>
+            <span class="count-lbl" id="reviews-count"></span>
+        </div>
+        <div class="reviews-grid" id="reviews-grid">
+            <div class="notif-empty">
+                <span class="material-icons-round">favorite_border</span>
+                <p>Loading testimonials...</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== ADMIN FEEDBACK MODERATION VIEW ===== -->
+    <section class="view" id="v-admin-feedback" aria-label="Review Feedback">
+        <div class="sec-hdr">
+            <h1 class="sec-title">Review Feedback</h1>
+            <span class="count-lbl" id="admin-feedback-count"></span>
+        </div>
+        <div class="feedback-admin-table" id="admin-feedback-list">
+            <div class="notif-empty">
+                <span class="material-icons-round">admin_panel_settings</span>
+                <p>Loading system feedback submissions...</p>
+            </div>
         </div>
     </section>
 

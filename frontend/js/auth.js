@@ -163,6 +163,12 @@ function setupUser(user) {
     
     const mobNav = document.querySelector('.mob-nav');
     if (mobNav) mobNav.style.display = 'flex';
+
+    // Toggle Admin Feedback menu item based on user ID
+    const adminBtn = id('pd-admin-feedback-btn');
+    if (adminBtn) {
+        adminBtn.style.display = (user && user.id === '108605923895065595037') ? 'flex' : 'none';
+    }
 }
 
 function logout() {

@@ -56,6 +56,8 @@ function show(v) {
     if (v === 'tasks')     renderTasks();
     if (v === 'subjects')  renderSubjects();
     if (v === 'done')      renderDone();
+    if (v === 'reviews')   renderReviews();
+    if (v === 'admin-feedback') renderAdminFeedback();
 }
 
 function quickFilter(type) { show('tasks'); setFilter(type); }
@@ -495,6 +497,172 @@ window.submitFeedback = async function(e) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<span class="material-icons-round" style="font-size:17px">send</span> Submit Feedback';
         toast(err.message, true);
+    }
+};
+
+/* ════════════════════════════════════════════
+   FEEDBACK VIEW & MODERATION
+   ════════════════════════════════════════════ */
+
+window.renderReviews = async function() {
+    const grid = id('reviews-grid');
+    const countLbl = id('reviews-count');
+    if (!grid) return;
+    
+    grid.innerHTML = `
+        <div class="notif-empty">
+            <div class="spin" style="border-top-color:var(--primary);width:24px;height:24px;"></div>
+            <p>Loading testimonials...</p>
+        </div>`;
+    if (countLbl) countLbl.textContent = '';
+    
+    try {
+        const reviews = await api('/feedback');
+        if (countLbl) countLbl.textContent = `${reviews.length} Approved`;
+        
+        if (!reviews.length) {
+            grid.innerHTML = `
+                <div class="notif-empty">
+                    <span class="material-icons-round">favorite_border</span>
+                    <p>No testimonials have been published yet.</p>
+                </div>`;
+            return;
+        }
+        
+        grid.innerHTML = reviews.map(r => {
+            const initial = getCleanInitial(r.name || 'Anonymous', '');
+            const imgHtml = r.picture 
+                ? `<img class="review-avatar" src="${r.picture}" alt="${esc(r.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <div class="review-avatar" style="display:none;align-items:center;justify-content:center;font-weight:600;font-size:0.875rem;background:var(--primary-container);color:var(--primary)">${esc(initial)}</div>`
+                : `<div class="review-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:600;font-size:0.875rem;background:var(--primary-container);color:var(--primary)">${esc(initial)}</div>`;
+                
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                starsHtml += `<span class="material-icons-round">${i <= r.rating ? 'star' : 'star_outline'}</span>`;
+            }
+            
+            const dateStr = r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+            
+            return `
+                <div class="review-card">
+                    <div class="review-card-hdr">
+                        ${imgHtml}
+                        <div class="review-user-meta">
+                            <span class="review-username">${esc(r.name || 'Anonymous')}</span>
+                            <span class="review-date">${esc(dateStr)}</span>
+                        </div>
+                    </div>
+                    <div class="review-rating-row">
+                        <div class="review-stars">${starsHtml}</div>
+                        <span class="review-category">${esc(r.category)}</span>
+                    </div>
+                    <p class="review-comment">${esc(r.comment)}</p>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        grid.innerHTML = `
+            <div class="notif-empty">
+                <span class="material-icons-round" style="color:var(--error)">error_outline</span>
+                <p>Failed to load reviews: ${esc(err.message)}</p>
+            </div>`;
+    }
+};
+
+window.renderAdminFeedback = async function() {
+    const list = id('admin-feedback-list');
+    const countLbl = id('admin-feedback-count');
+    if (!list) return;
+    
+    list.innerHTML = `
+        <div class="notif-empty">
+            <div class="spin" style="border-top-color:var(--primary);width:24px;height:24px;"></div>
+            <p>Loading system feedback submissions...</p>
+        </div>`;
+    if (countLbl) countLbl.textContent = '';
+    
+    try {
+        const feedbacks = await api('/admin/feedback');
+        if (countLbl) countLbl.textContent = `${feedbacks.length} Total`;
+        
+        if (!feedbacks.length) {
+            list.innerHTML = `
+                <div class="notif-empty">
+                    <span class="material-icons-round">admin_panel_settings</span>
+                    <p>No feedback submissions found in the database.</p>
+                </div>`;
+            return;
+        }
+        
+        list.innerHTML = feedbacks.map(f => {
+            const initial = getCleanInitial(f.name || 'Anonymous', f.email || '');
+            const imgHtml = f.picture 
+                ? `<img class="review-avatar" src="${f.picture}" alt="${esc(f.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <div class="review-avatar" style="display:none;align-items:center;justify-content:center;font-weight:600;font-size:0.875rem;background:var(--primary-container);color:var(--primary)">${esc(initial)}</div>`
+                : `<div class="review-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:600;font-size:0.875rem;background:var(--primary-container);color:var(--primary)">${esc(initial)}</div>`;
+                
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                starsHtml += `<span class="material-icons-round" style="font-size:16px">${i <= f.rating ? 'star' : 'star_outline'}</span>`;
+            }
+            
+            const dateStr = f.created_at ? new Date(f.created_at).toLocaleString() : '';
+            const checked = f.approved ? 'checked' : '';
+            const statusClass = f.approved ? 'active' : '';
+            const statusText = f.approved ? 'Approved' : 'Pending';
+            
+            return `
+                <div class="feedback-admin-row" id="far-${f.id}">
+                    <div class="feedback-admin-user">
+                        ${imgHtml}
+                        <div class="feedback-admin-details">
+                            <span class="review-username">${esc(f.name || 'Anonymous')}</span>
+                            <span class="feedback-admin-email">${esc(f.email || '')}</span>
+                        </div>
+                    </div>
+                    <div class="feedback-admin-content">
+                        <div class="feedback-admin-meta">
+                            <div class="review-stars">${starsHtml}</div>
+                            <span class="review-category">${esc(f.category)}</span>
+                            <span class="review-date">${esc(dateStr)}</span>
+                        </div>
+                        <p class="review-comment" style="font-size:0.8125rem;">${esc(f.comment)}</p>
+                    </div>
+                    <div class="feedback-admin-actions">
+                        <span class="feedback-admin-status-lbl ${statusClass}" id="fasl-${f.id}">${statusText}</span>
+                        <label class="switch-toggle" aria-label="Approve testimonial">
+                            <input type="checkbox" ${checked} onchange="toggleFeedbackApproval(${f.id}, this.checked)">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        list.innerHTML = `
+            <div class="notif-empty">
+                <span class="material-icons-round" style="color:var(--error)">error_outline</span>
+                <p>Failed to load administrative list: ${esc(err.message)}</p>
+            </div>`;
+    }
+};
+
+window.toggleFeedbackApproval = async function(fid, isApproved) {
+    const statusLbl = id(`fasl-${fid}`);
+    if (statusLbl) {
+        statusLbl.textContent = isApproved ? 'Approved' : 'Pending';
+        statusLbl.classList.toggle('active', isApproved);
+    }
+    
+    try {
+        await api(`/admin/feedback/${fid}/approve`, {
+            method: 'POST',
+            body: JSON.stringify({ approved: isApproved })
+        });
+        toast(isApproved ? 'Review approved for Wall of Love' : 'Review removed from Wall of Love');
+    } catch (err) {
+        toast(err.message, true);
+        renderAdminFeedback();
     }
 };
 
