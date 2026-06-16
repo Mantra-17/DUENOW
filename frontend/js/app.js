@@ -251,7 +251,7 @@ id('search-inp').addEventListener('input', function() {
 ════════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); id('search-inp').focus(); }
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') { closeModal(); closeFeedbackModal(); }
 });
 
 /* ════════════════════════════════════════════
@@ -347,6 +347,155 @@ window.triggerPwaInstall = async function() {
     
     // We've used the prompt, and can't use it again
     deferredPrompt = null;
+};
+
+
+/* ════════════════════════════════════════════
+   FEEDBACK MODAL
+   ════════════════════════════════════════════ */
+let selectedRating = null;
+let selectedCategory = null;
+
+const RATING_CAPTIONS = {
+    1: "Requires Significant Improvement",
+    2: "Needs Improvement",
+    3: "Meets Expectations",
+    4: "Very Good / Exceeds Expectations",
+    5: "Excellent / Outstanding Experience"
+};
+
+const CATEGORY_PLACEHOLDERS = {
+    'Report Issue': "Please describe the technical issue or unexpected behavior you encountered...",
+    'Suggest Enhancement': "Please describe your suggestion or feature request, and how it would improve your workflow...",
+    'Share Praise': "Please tell us what you like about ClassFlow, or share your positive experience...",
+    'General Inquiry': "Please share any other thoughts, comments, or general inquiries you have..."
+};
+
+window.openFeedbackModal = function() {
+    selectedRating = null;
+    selectedCategory = null;
+    
+    // Reset stars
+    document.querySelectorAll('#feedback-modal-bg .star-btn').forEach(btn => {
+        btn.classList.remove('active');
+        const icon = btn.querySelector('.material-icons-round');
+        if (icon) icon.textContent = 'star_outline';
+    });
+    id('rating-caption').textContent = 'Please select a rating';
+    
+    // Reset chips
+    document.querySelectorAll('#feedback-modal-bg .chip-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Reset textarea
+    const textarea = id('feedback-comment');
+    textarea.value = '';
+    textarea.placeholder = 'Please select a category above and share your thoughts...';
+    
+    // Reset form view & banner
+    id('feedback-form-container').style.display = 'block';
+    id('feedback-success-banner').classList.remove('open');
+    
+    // Reset submit button
+    const submitBtn = id('feedback-submit-btn');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<span class="material-icons-round" style="font-size:17px">send</span> Submit Feedback';
+    
+    // Open modal
+    id('feedback-modal-bg').classList.add('open');
+    document.body.style.overflow = 'hidden';
+};
+
+window.closeFeedbackModal = function() {
+    id('feedback-modal-bg').classList.remove('open');
+    document.body.style.overflow = '';
+};
+
+window.bgFeedbackClick = function(e) {
+    if (e.target === id('feedback-modal-bg')) {
+        closeFeedbackModal();
+    }
+};
+
+window.selectRating = function(rating) {
+    selectedRating = rating;
+    document.querySelectorAll('#feedback-modal-bg .star-btn').forEach(btn => {
+        const val = parseInt(btn.dataset.value, 10);
+        const icon = btn.querySelector('.material-icons-round');
+        if (val <= rating) {
+            btn.classList.add('active');
+            if (icon) icon.textContent = 'star';
+        } else {
+            btn.classList.remove('active');
+            if (icon) icon.textContent = 'star_outline';
+        }
+    });
+    id('rating-caption').textContent = RATING_CAPTIONS[rating] || 'Please select a rating';
+};
+
+window.selectCategory = function(category) {
+    selectedCategory = category;
+    document.querySelectorAll('#feedback-modal-bg .chip-btn').forEach(btn => {
+        if (btn.dataset.category === category) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+    const textarea = id('feedback-comment');
+    textarea.placeholder = CATEGORY_PLACEHOLDERS[category] || 'Please share your thoughts...';
+    textarea.focus();
+};
+
+window.submitFeedback = async function(e) {
+    e.preventDefault();
+    
+    const comment = id('feedback-comment').value.trim();
+    
+    if (selectedRating === null) {
+        toast('Please select a rating star.', true);
+        return;
+    }
+    if (!selectedCategory) {
+        toast('Please select a feedback category.', true);
+        return;
+    }
+    if (!comment) {
+        toast('Please enter your comments.', true);
+        return;
+    }
+    
+    const submitBtn = id('feedback-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<div class="spin"></div> Submitting...';
+    
+    try {
+        const payload = {
+            rating: selectedRating,
+            category: selectedCategory,
+            comment: comment
+        };
+        
+        await api('/feedback', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        
+        // Switch to success view
+        id('feedback-form-container').style.display = 'none';
+        id('feedback-success-banner').classList.add('open');
+        
+        // Auto close after 3 seconds
+        setTimeout(() => {
+            closeFeedbackModal();
+        }, 3000);
+        
+    } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="material-icons-round" style="font-size:17px">send</span> Submit Feedback';
+        toast(err.message, true);
+    }
 };
 
 (async function init() {

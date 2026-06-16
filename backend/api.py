@@ -173,6 +173,7 @@ def check_authentication() -> Response | None:
             or request.path.startswith('/css') or request.path.startswith('/js') \
             or request.path.startswith('/fonts') or request.path.startswith('/icons') \
             or request.path in ('/favicon.ico', '/manifest.json', '/sw.js', '/notifications/vapid-key', '/classflow.apk') \
+            or (request.path == '/feedback' and request.method == 'GET') \
             or (request.path.startswith('/auth/') and request.path != '/auth/me'):
         return None
 
@@ -1403,6 +1404,188 @@ def start_sync_watcher():
             
     thread = threading.Thread(target=run_sync_loop, daemon=True)
     thread.start()
+# ─────────────────────────────────────────────────────────────────────────────
+# Feedback & Reviews
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/feedback", methods=["POST"])
+def post_feedback() -> tuple[Response, int]:
+    """Submit user feedback, save to database, and trigger admin push alert."""
+    body = request.get_json(silent=True) or {}
+    rating = body.get("rating")
+    category = body.get("category")
+    comment = body.get("comment")
+
+    # Validate inputs strictly
+    if not isinstance(rating, int) or not (1 <= rating <= 5):
+        return _err("Rating must be an integer between 1 and 5.", "INVALID_INPUT", 400)
+    if not category or not isinstance(category, str):
+        return _err("Category is required.", "INVALID_INPUT", 400)
+    if not comment or not isinstance(comment, str) or not comment.strip():
+        return _err("Comment cannot be empty.", "INVALID_INPUT", 400)
+
+    category = category.strip()
+    comment = comment.strip()
+
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    INSERT INTO feedback (user_id, rating, category, comment, approved)
+                    VALUES (%s, %s, %s, %s, FALSE)
+                    RETURNING id, user_id, rating, category, comment, approved, created_at
+                    """,
+                    (g.user_id, rating, category, comment)
+                )
+                row = dict(cur.fetchone())
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to save feedback: {e}")
+        return _err("Failed to submit feedback.", "DB_ERROR", 500)
+
+    # Spawn background thread to notify the administrator (User ID: 108605923895065595037)
+    admin_id = "108605923895065595037"
+    import threading
+    def notify_admin():
+        from pywebpush import webpush, WebPushException
+        import json
+
+        rating_captions = {
+            1: "Requires Significant Improvement",
+            2: "Needs Improvement",
+            3: "Meets Expectations",
+            4: "Very Good / Exceeds Expectations",
+            5: "Excellent / Outstanding Experience"
+        }
+        caption = rating_captions.get(rating, "")
+        
+        # Strictly formal tone message
+        title = "New Feedback Submitted 📢"
+        message = f"Rating: {rating}/5 ({caption})\nCategory: {category}\nComment: {comment}"
+        
+        try:
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("SELECT * FROM push_subscriptions WHERE user_id = %s", (admin_id,))
+                    subs = [dict(r) for r in cur.fetchall()]
+            
+            if not subs:
+                logger.info("No push subscriptions registered for admin user.")
+                return
+
+            payload = json.dumps({
+                "title": title,
+                "body": message,
+                "url": "/",
+                "tag": "cf-admin-feedback"
+            })
+
+            sent = 0
+            for sub in subs:
+                try:
+                    webpush(
+                        subscription_info={
+                            "endpoint": sub["endpoint"],
+                            "keys": {
+                                "p256dh": sub["p256dh"],
+                                "auth": sub["auth"]
+                            }
+                        },
+                        data=payload,
+                        vapid_private_key=VAPID_KEY_PATH,
+                        vapid_claims={"sub": "mailto:classflow-admin@example.com"}
+                    )
+                    sent += 1
+                except WebPushException as ex:
+                    logger.warning(f"Push notification failed for admin subscription {sub['endpoint'][:40]}: {ex}")
+                    # Clean up if dead
+                    if ex.response is not None and ex.response.status_code in (403, 404, 410):
+                        try:
+                            with get_conn() as conn:
+                                with conn.cursor() as cur:
+                                    cur.execute("DELETE FROM push_subscriptions WHERE id = %s", (sub["id"],))
+                                conn.commit()
+                        except Exception as db_ex:
+                            logger.error(f"Failed to delete dead subscription {sub['id']}: {db_ex}")
+            logger.info(f"Feedback admin notification dispatched to {sent} subscription(s).")
+        except Exception as ex:
+            logger.error(f"Error in notify_admin background thread: {ex}", exc_info=True)
+
+    threading.Thread(target=notify_admin, daemon=True).start()
+
+    return jsonify(row), 200
+
+
+@app.route("/feedback", methods=["GET"])
+def get_feedback() -> tuple[Response, int]:
+    """Retrieve all approved user feedback and ratings (public/guest showcase)."""
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT f.id, f.rating, f.category, f.comment, f.created_at, u.name, u.picture
+                    FROM feedback f
+                    LEFT JOIN users u ON f.user_id = u.id
+                    WHERE f.approved = TRUE
+                    ORDER BY f.created_at DESC
+                    """
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+        return jsonify(rows), 200
+    except Exception as e:
+        logger.error(f"Failed to fetch approved feedback: {e}")
+        return _err("Database query failed.", "DB_ERROR", 500)
+
+
+@app.route("/admin/feedback", methods=["GET"])
+def get_admin_feedback() -> tuple[Response, int]:
+    """Retrieve all submitted feedback (admin-only)."""
+    admin_id = "108605923895065595037"
+    if g.user_id != admin_id:
+        return _err("Access denied. Administrator privileges required.", "FORBIDDEN", 403)
+
+    try:
+        with get_conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT f.id, f.user_id, f.rating, f.category, f.comment, f.approved, f.created_at, u.name, u.picture, u.email
+                    FROM feedback f
+                    LEFT JOIN users u ON f.user_id = u.id
+                    ORDER BY f.created_at DESC
+                    """
+                )
+                rows = [dict(r) for r in cur.fetchall()]
+        return jsonify(rows), 200
+    except Exception as e:
+        logger.error(f"Failed to fetch admin feedback: {e}")
+        return _err("Database query failed.", "DB_ERROR", 500)
+
+
+@app.route("/admin/feedback/<int:fid>/approve", methods=["POST"])
+def approve_feedback(fid: int) -> tuple[Response, int]:
+    """Approve or reject a specific feedback entry (admin-only)."""
+    admin_id = "108605923895065595037"
+    if g.user_id != admin_id:
+        return _err("Access denied. Administrator privileges required.", "FORBIDDEN", 403)
+
+    body = request.get_json(silent=True) or {}
+    approved = body.get("approved", True)
+
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE feedback SET approved = %s WHERE id = %s",
+                    (approved, fid)
+                )
+            conn.commit()
+        return jsonify({"status": "success", "message": "Feedback state updated successfully."}), 200
+    except Exception as e:
+        logger.error(f"Failed to update feedback approval state: {e}")
+        return _err("Database update failed.", "DB_ERROR", 500)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

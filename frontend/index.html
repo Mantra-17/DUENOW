@@ -169,6 +169,10 @@
                         <span class="material-icons-round">task_alt</span>
                         Completed Tasks
                     </button>
+                    <button class="pd-menu-item" onclick="openFeedbackModal();closeProfile()">
+                        <span class="material-icons-round">rate_review</span>
+                        Send Feedback
+                    </button>
                     <div class="pd-divider"></div>
                     <button class="pd-menu-item danger" onclick="logout();closeProfile()">
                         <span class="material-icons-round">logout</span>
@@ -435,6 +439,80 @@
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────────────
+     FEEDBACK MODAL
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="feedback-modal-bg" role="dialog" aria-modal="true" aria-labelledby="feedback-title-lbl" onclick="bgFeedbackClick(event)">
+    <div class="modal-box" id="feedback-modal-box">
+        <!-- Form Content Container -->
+        <div id="feedback-form-container">
+            <div class="modal-hdr">
+                <h2 class="modal-title" id="feedback-title-lbl">Submit Feedback</h2>
+                <button class="modal-close" onclick="closeFeedbackModal()" aria-label="Close dialog">
+                    <span class="material-icons-round">close</span>
+                </button>
+            </div>
+
+            <form id="feedback-form" onsubmit="submitFeedback(event)" novalidate>
+                <!-- Star Rating Field -->
+                <div class="rating-group">
+                    <label class="form-lbl">Rating</label>
+                    <div class="stars-wrap">
+                        <button type="button" class="star-btn" data-value="1" onclick="selectRating(1)" aria-label="Rate 1 star">
+                            <span class="material-icons-round">star_outline</span>
+                        </button>
+                        <button type="button" class="star-btn" data-value="2" onclick="selectRating(2)" aria-label="Rate 2 stars">
+                            <span class="material-icons-round">star_outline</span>
+                        </button>
+                        <button type="button" class="star-btn" data-value="3" onclick="selectRating(3)" aria-label="Rate 3 stars">
+                            <span class="material-icons-round">star_outline</span>
+                        </button>
+                        <button type="button" class="star-btn" data-value="4" onclick="selectRating(4)" aria-label="Rate 4 stars">
+                            <span class="material-icons-round">star_outline</span>
+                        </button>
+                        <button type="button" class="star-btn" data-value="5" onclick="selectRating(5)" aria-label="Rate 5 stars">
+                            <span class="material-icons-round">star_outline</span>
+                        </button>
+                    </div>
+                    <div class="rating-caption" id="rating-caption">Please select a rating</div>
+                </div>
+
+                <!-- Category Chips Field -->
+                <div class="form-fld">
+                    <label class="form-lbl">Category</label>
+                    <div class="chips-wrap" id="feedback-chips">
+                        <button type="button" class="chip-btn" data-category="General Inquiry" onclick="selectCategory('General Inquiry')">General Inquiry</button>
+                        <button type="button" class="chip-btn" data-category="Report Issue" onclick="selectCategory('Report Issue')">Report Issue</button>
+                        <button type="button" class="chip-btn" data-category="Suggest Enhancement" onclick="selectCategory('Suggest Enhancement')">Suggest Enhancement</button>
+                        <button type="button" class="chip-btn" data-category="Share Praise" onclick="selectCategory('Share Praise')">Share Praise</button>
+                    </div>
+                </div>
+
+                <!-- Comment Input Field -->
+                <div class="form-fld">
+                    <label class="form-lbl" for="feedback-comment">Comments <span class="form-req">*</span></label>
+                    <textarea class="form-inp" id="feedback-comment" required maxlength="1000" placeholder="Please select a category above and share your thoughts..." autocomplete="off"></textarea>
+                </div>
+
+                <div class="modal-ftr">
+                    <button type="button" class="btn btn-ghost" onclick="closeFeedbackModal()">Cancel</button>
+                    <button type="submit" class="btn btn-fill" id="feedback-submit-btn">
+                        <span class="material-icons-round" style="font-size:17px">send</span>
+                        Submit Feedback
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Success Banner Container -->
+        <div class="feedback-success-banner" id="feedback-success-banner">
+            <span class="material-icons-round success-icon">check_circle</span>
+            <h3>Thank You for Your Feedback</h3>
+            <p>Your submission has been received. We appreciate your contribution to improving ClassFlow.</p>
+        </div>
     </div>
 </div>
 

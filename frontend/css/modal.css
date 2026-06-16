@@ -129,3 +129,128 @@ select.form-inp { cursor: pointer; }
     border-radius: 50%;
     animation: spinR .7s linear infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   FEEDBACK MODAL STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+.rating-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 22px;
+}
+
+.stars-wrap {
+    display: flex;
+    gap: 8px;
+}
+
+.star-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--on-surface-var);
+    transition: transform 0.15s, color 0.15s;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.star-btn .material-icons-round {
+    font-size: 38px !important;
+}
+
+.star-btn:hover {
+    transform: scale(1.2);
+}
+
+.star-btn.active {
+    color: #ffb300; /* Executive Warm Amber Gold */
+}
+
+.rating-caption {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--on-surface-var);
+    height: 16px; /* Prevent layout shifts */
+    text-align: center;
+}
+
+.chips-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    margin-bottom: 20px;
+}
+
+.chip-btn {
+    background: var(--surface-variant);
+    border: 1px solid transparent;
+    color: var(--on-surface-var);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chip-btn:hover {
+    background: var(--surface-hover);
+    color: var(--on-surface);
+}
+
+.chip-btn.active {
+    background: var(--primary-container);
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+textarea.form-inp {
+    height: 120px;
+    padding: 12px 14px;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+/* Success Overlay */
+.feedback-success-banner {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 16px;
+    padding: 40px 20px;
+}
+
+.feedback-success-banner.open {
+    display: flex;
+    animation: fadeIn 0.25s ease;
+}
+
+.feedback-success-banner .success-icon {
+    font-size: 48px !important;
+    color: var(--primary);
+}
+
+.feedback-success-banner h3 {
+    font-family: 'Google Sans', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--on-surface);
+    margin: 0;
+}
+
+.feedback-success-banner p {
+    font-size: 0.875rem;
+    color: var(--on-surface-var);
+    margin: 0;
+    line-height: 1.5;
+}

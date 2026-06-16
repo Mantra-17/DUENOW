@@ -161,6 +161,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     auth              TEXT        NOT NULL,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Feedback and reviews table
+CREATE TABLE IF NOT EXISTS feedback (
+    id         SERIAL PRIMARY KEY,
+    user_id    TEXT REFERENCES users(id) ON DELETE CASCADE,
+    rating     INTEGER CHECK (rating BETWEEN 1 AND 5),
+    category   TEXT NOT NULL,
+    comment    TEXT NOT NULL,
+    approved   BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 # Additive migrations — safe to run on existing tables.
@@ -187,6 +198,17 @@ MIGRATION_SQL = [
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
     "ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE CASCADE",
     "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_created_at TIMESTAMPTZ",
+    """
+    CREATE TABLE IF NOT EXISTS feedback (
+        id         SERIAL PRIMARY KEY,
+        user_id    TEXT REFERENCES users(id) ON DELETE CASCADE,
+        rating     INTEGER CHECK (rating BETWEEN 1 AND 5),
+        category   TEXT NOT NULL,
+        comment    TEXT NOT NULL,
+        approved   BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
 ]
 
 
