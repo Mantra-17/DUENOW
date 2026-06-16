@@ -84,6 +84,14 @@ import base64
 VAPID_KEY_PATH = os.path.join(os.path.dirname(__file__), 'private_key.pem')
 vapid_obj = Vapid()
 
+# Check if VAPID private key is provided via environment variable (useful for ephemeral containers like Render)
+env_pem = os.getenv("VAPID_PRIVATE_KEY_PEM")
+if env_pem:
+    logger.info("Writing VAPID private key from environment variable VAPID_PRIVATE_KEY_PEM...")
+    env_pem = env_pem.replace("\\n", "\n")
+    with open(VAPID_KEY_PATH, "w") as f:
+        f.write(env_pem.strip() + "\n")
+
 if not os.path.exists(VAPID_KEY_PATH):
     logger.info("Generating a new VAPID private/public key pair...")
     vapid_obj.generate_keys()
